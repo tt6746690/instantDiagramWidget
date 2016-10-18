@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<title>Instant Search Diagram</title>
+<link rel="stylesheet" type="text/css" href="diagram.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.6/d3.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.3/prototype.js"></script>
+<header>
+</header>
+<body>
+  <p> instant search diagram </p>
+  <input id='button1' type="button" value="destroy">
+  <input id='button2' type="button" value="reload">
+  <div id='instantSearchDiagram'></div>
+</body>
+
+<script src="./scripts/data.js"></script>
+<script src="./scripts/dataraw.js"></script>
+<script src="./scripts/diagram.js"></script>
+<script src="./scripts/matrix.js"></script>
+<script src="./scripts/symptom.js"></script>
+<script src="./scripts/disorder.js"></script>
+<script>
+  // instantiation
+  var d = new diagram(
+    $('instantSearchDiagram'),
+    dataraw, {})
+
+  // methods invocation
+  this.d = d
+
+  $('button1').observe('click', function(e){
+    d._destroy()
+  })
+
+  $('button2').observe('click', function(e){
+    d._reload()
+  })
+</script>

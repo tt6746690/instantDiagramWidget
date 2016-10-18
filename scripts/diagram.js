@@ -27,6 +27,8 @@ var Disorder = Class.create(Term, {})
 var dataHandler = Class.create({
   initialize: function(inputData, config){
     this.config = config
+
+    // data s...
     this.inputData = inputData
     this.procData = this.preProcess(this.inputData)
     this.matrix = this.toMatrix(this.procData)
@@ -132,7 +134,7 @@ var dataHandler = Class.create({
 ///////////////////////////////////////////////////////////////////////////////
 
 
-var diagram = Class.create({
+var Diagram = Class.create({
 
   initialize: function(domElt, data, options){
     this.config = this.resolveConfig(options, domElt)
@@ -141,6 +143,7 @@ var diagram = Class.create({
     // this.state.data = this.preProcess(data)
 
     this.state.dataHandler = new dataHandler(data, this.config)
+    this.state.data = this.state.dataHandler.procData
     this.state.matrix = this.state.dataHandler.matrix
 
 

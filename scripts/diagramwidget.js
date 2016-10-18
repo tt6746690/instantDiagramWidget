@@ -1,336 +1,567 @@
-var PhenoTips = (function(PhenoTips) {
-  var widgets = PhenoTips.widgets = PhenoTips.widgets || {};
+/**
+ * Diagram Class
+ */
 
- require(["$services.webjars.url('d3js', 'd3.js')"], function(d3) {
-   widgets.diagram = Class.create({
+var Diagram = Class.create({
 
-     initialize: function(domElt, data, options){
-       this.config = this.resolveConfig(options, domElt)
+  initialize: function(domElt, data, options){
 
-       this.state = {}
-       this.state.data = this.preProcess(data)
-       this.state.matrix = this.toMatrix(this.state.data)
-       this.state.scale = this.setupScale()
+    this.config = this._resolveConfig(options, domElt)
 
-       this.draw()
-     },
+    this.state = {}
+    this.state.dataHandler = new dataHandler(data, this.config)
+    this.state.data = this.state.dataHandler.popData
+    this.state.matrix = this.state.dataHandler.matrix
+    this.state.scale = this.setUpScale()
+    this.state.selection = this._specifySelect()
 
-     // internal configs
-     internalConfig: {
-       width: 600,
-       height: 600,
-       margin: {
-         left: 200,
-         right: 100,
-         top: 150,
-         bottom: 100
-       },
-       tooltips: {
-         width: 140,
-         height: 100
-       },
-       numSymptomdisplayed: 30,
-       numDisorderdisplayed: 20
-     },
-     // resolve internal configs and user specified options
-     resolveConfig: function(options, domElt){
-       // deep clone prevent prototype.internalConfig from mutating
-       var intConf = JSON.parse(JSON.stringify(this.internalConfig))
-       intConf.domElement = domElt
-       return Object.extend(intConf, options)
-     },
+    this.state.actionDispatcher = new actionDispatcher()
 
-     // destroy upon removal
-     _destroy: function(){
-       this.config.domElement.firstDescendant().remove()
-     },
+    this.destroy()
+    this.draw()
+  },
 
-     // reload using stored data and config
-     _reload: function(){
-       this.draw()
-     },
-
-     // utility for sorting data
-     _setupOrderingByFreq: function(data){
-       var config = this.config
-       // sort symptom based on the number of connected disorders
-       data.symptom.sort(function(a, b){return b.link.length - a.link.length; })
-       data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
-       // sort disorder based on the number of connected symptoms
-       // may have to comment this out if the order of disorder is has meaning...
-       data.disorder.sort(function(a, b) { return b.link.length - a.link.length; })
-       data.disorder = data.disorder.slice(0, config.numDisorderdisplayed)
-     },
-
-     // preprocess data into correct data structure
-     preProcess: function(olddata){
-       var config = this.config
-       var newdata = {
-         "disorder": [],
-         "symptom": []
-       }
-       // data = [{disorder}, {disorder}, ...]
-       olddata.forEach(function(d){
-         // populate symptom
-         d.symptom.forEach(function(s){
-           var symptom = {
-             key: s.key,
-             text: s.text,
-             link: [d.key]
-           }
-           // construct non duplicate array
-           var idx = newdata.symptom.map(function(x){return x.key;}).indexOf(s.key)
-           if(idx === -1){
-             // push new symptom to array
-             newdata.symptom.push(symptom)
-           } else {
-             // update symptom.link for symptom already pushed previously
-             newdata.symptom[idx].link.push(d.key)
-           }
-         })
-
-         // populate disorder
-         var disorder = {
-           key: d.key,
-           text: d.text,
-           link: []
-         }
-         d.symptom.forEach(function(s){
-           var i = newdata.symptom.map(function(x){return x.key}).indexOf(s.key)
-           disorder.link.push(newdata.symptom[i].key)
-         })
-         newdata.disorder.push(disorder)
-       })
-
-       return newdata
-     },
-
-     // pre Process data to matrix
-     toMatrix: function(data){
-       var config = this.config
-
-       // ordering of raw data
-       this._setupOrderingByFreq(data)
-
-       // populate matrix
-       var matrix = []
-       data.disorder.forEach(function(d, i){
-         var row = []
-         Object.defineProperty(row, 'data', {
-           enumerable: false,
-           configurable: true,
-           writable: true,
-           value: d
-         })
-         data.symptom.forEach(function(s, j){
-           row[j] = {
-             x: i,
-             y: j
-           }
-           row[j].z = (d.link.indexOf(s.key) != -1)? true: false
-           Object.defineProperty(row[j], 'data', {
-             enumerable: false,
-             configurable: true,
-             writable: true,
-             value: s
-           })
-         })
-         matrix[i] = row
-       })
-       return matrix
-     },
-
-     // set up x and y scale range
-     setupScale: function(){
-       var config = this.config
-       var Scale = {
-         x: d3.scaleBand().rangeRound([0, config.width]).paddingInner([.1]).paddingOuter([.1]),
-         y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([.1]).paddingOuter([.1])
-       }
-       return Scale
-     },
-
-     // start creating svg elements
-     draw: function(){
-       this._createSVGcontainer()
-       this._createMatrix()
-     },
-
-     // create root svg container
-     _createSVGcontainer: function(){
-       var config = this.config
-       this.state.svg = d3.select('#' + config.domElement.id)
-         .append("svg")
-           .attr("width", config.width + config.margin.left + config.margin.right)
-           .attr("height", config.height + config.margin.top + config.margin.bottom)
-         .append("g")
-           .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")")
-           .attr("id", "matrix-diagram")
-           .attr("class", "svg-group")
-     },
-
-     // create matrix background
-     _createMatrix: function(){
-       var config = this.config
-       var state = this.state
-
-       // set scale domain to symptom and disorder names
-       state.scale.x.domain(state.data.symptom.map(function(s){return s.text}))
-       state.scale.y.domain(state.data.disorder.map(function(d){return d.text}))
+  // internal configs
+  internalConfig: {
+    width: 1000,
+    height: 500,
+    margin: {
+      left: 500,
+      right: 100,
+      top: 150,
+      bottom: 100
+    },
+    tooltips: {
+      width: 140,
+      height: 100
+    },
+    numSymptomdisplayed: 80,
+    numDisorderdisplayed: 20,
+    innerPadding: .1,
+    cellWidth: 25,
+    scrollWidth: 0 // cellWidth * numbeSymptomdisplayed
+  },
 
 
-       state.column = state.svg.selectAll(".matrix-column")
-           .data(state.matrix[0]) // first row
-         .enter().append("g")
-           .attr("class", "matrix-column")
-           .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})  //rotate(-45)
+  _specifySelect: function(){
+    var state = this.state
 
-       state.column
-         .append("rect")
-           .attr("class", "matrix-column-background")
-           .attr("y", 0)
-           .attr("width", state.scale.x.bandwidth())
-           .attr("height", config.height)
-
-       state.column
-         .append("text")
-           .attr("class", "matrix-column-text search-term")
-           .attr("x", 10)
-           .attr("y", state.scale.x.bandwidth() / 2)
-           .attr("text-anchor", "start")
-           .attr("transform", "rotate(-45)")
-           .text(function(d) { return d.data.text; })
-           .on("click", doSearch)
-
-           function doSearch(){
-             console.log('hi')
-           }
+    return {
+      row: function(rowNum){
+        return state.row.filter(function(x,i){return i === rowNum;})
+      }
+    }
+  },
 
 
-       state.row = state.svg.selectAll(".matrix-row")
-           .data(state.matrix)
-         .enter().append("g")
-           .attr("class", "matrix-row")
-           .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
+  // resolve internal configs and user specified options
+  _resolveConfig: function(options, domElt){
+    // deep clone prevent prototype.internalConfig from mutating
+    var intConf = JSON.parse(JSON.stringify(this.internalConfig))
+    intConf.domElement = domElt
+    return Object.extend(intConf, options)
+  },
 
-       state.row
-         .append("rect")
-           .attr("class", "matrix-row-background")
-           .attr("x", 0)
-           .attr("width", config.width)
-           .attr("height", state.scale.y.bandwidth())
+  // destroy upon removal
+  destroy: function(){
+    $("outsideContainer") && $("outsideContainer").remove()
+    $("insideContainer") && $("insideContainer").remove()
+  },
+
+  // reload using stored data and config
+  reload: function(){
+    this.draw()
+  },
+
+  // set up x and y scale range
+  setUpScale: function(){
+    var config = this.config
+    config.scrollWidth = Math.max(config.width, config.numSymptomdisplayed * config.cellWidth)
+    console.log(config.scrollWidth)
+
+    var Scale = {
+      x: d3.scaleBand().rangeRound([0, config.scrollWidth]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),
+      y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding])
+    }
+    return Scale
+  },
+
+  // start creating svg elements
+  draw: function(){
+
+    this._createSVGContainers()
+    this._createColumnHeadings()
+    this._createMatrix()
+  },
+
+  // create root svg container
+  _createSVGContainers: function(){
+
+    var config = this.config
+    var state = this.state
+    // set scale domain to symptom and disorder names
+    state.scale.x.domain(state.data.symptom.map(function(s){return s.text}))
+    state.scale.y.domain(state.data.disorder.map(function(d){return d.text}))
+
+    this.state.outsideSVG = d3.select('#' + config.domElement.id)
+      .append("div")
+        .attr("id", "outsideContainer")
+      .append("svg")
+        .attr("width", config.margin.left)
+        .attr("height", config.height + config.margin.top)
+      .append("g")
+        .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")")
+        .attr("id", "outsideGroup")
+        .attr("class", "svg-group")
+
+    this.state.insideSVG = d3.select('#' + config.domElement.id)
+      .append("div")
+        .attr("id","insideContainer")
+        .style("width", config.width + "px")
+        .style("height", (config.height + config.margin.top) + "px")
+      .append("svg")
+        .attr("viewBox", "0,0," + config.scrollWidth + "," +(config.height + config.margin.top))
+        // .attr("width", config.width + config.margin.right)
+        .attr("width", config.scrollWidth)
+        .attr("height", config.height + config.margin.top)
+      .append("g")
+        .attr("transform", "translate(0," + config.margin.top + ")")
+        .attr("id", "insideGroup")
+        .attr("class", "svg-group")
 
 
+  },
 
-       state.row
-         .append("a")
-           .attr("href", function(d){
-             return "http://www.omim.org/entry/" + d.data.key
-           })
-           .attr("target", "_blank")
-           .attr("title", "Read about this Disorder on OMIM")
-         .append("text")
-           .attr("class", "matrix-row-text")
-           .attr("x", 0)
-           .attr("y", state.scale.y.bandwidth() / 2)
-           .attr("text-anchor", "end")
-           .text(function(d, i) { return d.data.text; });
+  _createColumnHeadings: function(){
+    var config = this.config
+    var state = this.state
 
-       state.cellGroup = state.row.selectAll("matrix-cell-group")
-           .data(function(d){return d})
-         .enter().append("g")
-           .attr("class", "matrix-cell-group")
-           .attr("transform", function(d) { return "translate(" + state.scale.x(d.data.text) + ",0)"; })
+    state.rowText = state.outsideSVG.selectAll(".matrix-row")
+        .data(state.matrix)
+      .enter().append("g")
+        .attr("class", "matrix-row")
+        .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
+      .append("a")
+        .attr("href", function(d){
+          return "http://www.omim.org/entry/" + d.data.key
+        })
+        .attr("target", "_blank")
+        .attr("title", "Read about this Disorder on OMIM")
+      .append("text")
+        .attr("class", "matrix-row-text")
+        .attr("x", 0)
+        .attr("y", state.scale.y.bandwidth() / 2)
+        .attr("text-anchor", "end")
+        .text(function(d, i) { return d.data.text; })
+        .on("mouseover", function(d, i, j){
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.activateRow(d.x)
+
+          var keyPool = d.data.link
+          Dispatcher.toggleMultipleCol(keyPool)
+
+        }.bind(this))
+        .on("mouseout", function(d){
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.deactivateRow(d.x)
+
+          var keyPool = d.data.link
+          Dispatcher.toggleMultipleCol(keyPool)
+
+        }.bind(this))
+
+  },
+
+  // create matrix background
+  _createMatrix: function(){
+    var state = this.state
+    var config = this.config
+    /**
+     * COLUMNS
+     */
+
+    state.column = state.insideSVG.selectAll(".matrix-column")
+        .data(state.matrix[0]) // first row
+      .enter().append("g")
+        .attr("class", "matrix-column")
+        .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})  //rotate(-45)
 
 
-       state.celltooltips = state.cellGroup
-         .append("g")
-           .attr("class", "matrix-cell-tooltip-group")
-           .attr("transform", "translate(" + state.scale.x.bandwidth() + "," + state.scale.y.bandwidth() + ")")
+    state.column
+      .append("rect")
+        .attr("class", "matrix-column-background")
+        .attr("y", 0)
+        .attr("width", state.scale.x.bandwidth())
+        .attr("height", config.height)
 
-       state.celltooltips.append("rect")
-           .attr("class", "matrix-cell-tooltip-background")
-           .attr("width", config.tooltips.width)
-           .attr("height", config.tooltips.height)
+    state.column
+      .append("text")
+        .attr("class", "matrix-column-text search-term")
+        .attr("x", 10)
+        .attr("y", state.scale.x.bandwidth() / 2)
+        .attr("text-anchor", "start")
+        .attr("transform", "rotate(-45)")
+        .text(function(d) { return d.data.text; })
+        .on("mouseover", function(d, i, j){
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.activateCol(d.y)
 
-       state.celltooltips.append("text")
-           .attr("class", "matrix-cell-tooltip-text")
-           .attr("text-anchor", "start")
-           .attr("dx", state.scale.x.bandwidth())
-           .attr("dy", state.scale.y.bandwidth())
-           .text(function(d){
-             return d.data.text
-           })
+          var keyPool = d.data.link
+          Dispatcher.toggleMultipleRow(keyPool)
+        }.bind(this))
+        .on("mouseout", function(d){
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.deactivateCol(d.y)
 
-       state.cell = state.cellGroup.append('rect')
-           .attr("class", "matrix-cell")
-           .attr("x", 0)
-           .attr("width", state.scale.x.bandwidth())
-           .attr("height", state.scale.y.bandwidth())
-           .style("opacity", function(d) { return d.z === true ? 1 : 0})
-           .on("mouseover", cellmouseover)
-           .on("mouseout", cellmouseout)
+          var keyPool = d.data.link
+          Dispatcher.toggleMultipleRow(keyPool)
+        }.bind(this))
+
+    /**
+     * Row
+     */
+
+    state.row = state.insideSVG.selectAll(".matrix-row")
+        .data(state.matrix)
+      .enter().append("g")
+        .attr("class", "matrix-row")
+        .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
 
 
-           // cell mouseover behaviour
-           function cellmouseover(cell){
-             var that = this
-             // change cell color by css class
-             d3.select(this).classed("cell-mouse-over", true)
+    state.row
+      .append("rect")
+        .attr("class", "matrix-row-background")
+        .attr("x", 0)
+        .attr("width", config.scrollWidth)
+        .attr("height", state.scale.y.bandwidth())
 
-             // change row/column color by css class
-             d3.selectAll(".matrix-row").classed("row-active", function(d, i) {
-               return  that.__data__.x === i;
-             });
-             d3.selectAll(".matrix-column").classed("column-active", function(d, i) {
-               return  that.__data__.y === i;
-             });
+    /**
+     * Cell
+     */
 
-             // tooltips popup
-             // happens only if there is a link in the cell
-             if (cell.z){
-               var parentRow = this.parentNode.parentNode
-               var parentMatrix = parentRow.parentNode
+    state.cellGroup = state.row.selectAll("matrix-cell-group")
+        .data(function(d){return d})
+      .enter().append("g")
+        .attr("class", "matrix-cell-group")
+        .attr("transform", function(d) { return "translate(" + state.scale.x(d.data.text) + ",0)"; })
 
-               parentMatrix.appendChild(parentRow)
-               d3.select(this.previousSibling).classed("tooltips-active", true)
-             }
 
-           }
+    state.celltooltips = state.cellGroup
+      .append("g")
+        .attr("class", "matrix-cell-tooltip-group")
+        .attr("transform", "translate(" + state.scale.x.bandwidth() + "," + state.scale.y.bandwidth() + ")")
 
-           // cell mouseout behavior
-           function cellmouseout(cell){
-             // remove cell color
-             d3.select(this).classed("cell-mouse-over", false)
+    state.celltooltips.append("rect")
+        .attr("class", "matrix-cell-tooltip-background")
+        .attr("width", config.tooltips.width)
+        .attr("height", config.tooltips.height)
 
-             //-- Remove tooltips
-             // re-sort .matrix-row to restore rect element order
-             var parentMatrix = this.parentNode.parentNode.parentNode
-             // convert NodeList > Array
-             var childNodesArray = Array.prototype.slice.call(parentMatrix.childNodes, 0)
-             // filter for class with .matrix-row
-             childNodesArray = childNodesArray.filter(function(n){
-               return n.classList.contains("matrix-row")
-             })
-             // sort based on transform.translateX
-             childNodesArray.sort(function(a, b){
-               var test = /.*\,(.+)\).*/
-               return a.getAttribute("transform").match(test)[1] - b.getAttribute("transform").match(test)[1]
-             })
-             // apply order to .svg-group
-             childNodesArray.forEach(function(n){
-               parentMatrix.appendChild(n)
-             })
-             // disable tooltips active style
-             d3.select(this.previousSibling).classed("tooltips-active", false)
-           }
+    state.celltooltips.append("text")
+        .attr("class", "matrix-cell-tooltip-text")
+        .attr("text-anchor", "start")
+        .attr("dx", state.scale.x.bandwidth())
+        .attr("dy", state.scale.y.bandwidth())
+        .text(function(d){
+          return d.data.text
+        })
 
-     }
-   }) // diagram class
- } // require d3js
+    state.cell = state.cellGroup.append('rect')
+        .attr("class", "matrix-cell")
+        .attr("x", 0)
+        .attr("width", state.scale.x.bandwidth())
+        .attr("height", state.scale.y.bandwidth())
+        .style("opacity", function(d) { return d.z === true ? 1 : 0})
+        .on("mouseover", function(d, i, j){
+          // d <==> current cell object {x,y,z}
+          // i <==> column index
+          // j <==> all rect elem in curr row
+          // this <==> global window
+          // self <==> curr rect elem
+          var self = j[i]
+
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.toggleCell(self)
+          Dispatcher.activateRow(self.__data__.x)
+          Dispatcher.activateCol(self.__data__.y)
+
+          // tooltips popup for cell with value in z
+          if (self.__data__.z){
+            // list parentRow to top so that tooltip displays properly
+            var parentRow = this.state.selection.row(self.__data__.x).node()
+            Dispatcher.liftToTop(parentRow)
+            Dispatcher.toggleTooltip(self.previousSibling)
+          }
+        }.bind(this)) // end mouseover
+        .on("mouseout",  function(d, i, j){
+          var self = j[i]
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.toggleCell(self)
+          Dispatcher.deactivateRow(self.__data__.x)
+          Dispatcher.deactivateCol(self.__data__.y)
+
+          if (self.__data__.z){
+            Dispatcher.sortRows()
+            Dispatcher.toggleTooltip(self.previousSibling)
+          }
+        }.bind(this)) // end mouseout()
+
+
+    } // end createMatrix
+}) // end class.create
 
 
 
-  return PhenoTips
+var actionDispatcher = Class.create({
+  initialize: function(){
 
-})(PhenoTips || {}) // phenotips
+  },
+
+  liftToTop: function(elem){
+    plane = elem.parentNode
+    plane.appendChild(elem)
+  },
+
+  toggleCell: function(selection){
+    // change cell color by css class
+    var cellSelection = d3.select(selection)
+    cellSelection.classed("cell-mouse-over", !cellSelection.classed("cell-mouse-over"))
+  },
+
+  activateRow: function(rowNum){
+
+    // highlight row text
+    d3.selectAll(".matrix-row").classed("row-active", function(d, i) {
+      return  rowNum === i;
+    })
+    // highlight background
+    d3.selectAll(".matrix-row-background").classed("row-background-active", function(d, i){
+      return rowNum === d.x;
+    })
+
+
+  },
+
+  deactivateRow: function(rowNum){
+    d3.selectAll(".matrix-row").classed("row-active", false)
+    d3.selectAll(".matrix-row-background").classed("row-background-active", false)
+  },
+
+  toggleMultipleRow: function(keyPool){
+    d3.selectAll(".matrix-row").each(function(d, i){
+      var elm = d3.select(this)
+      var elmBackground = d3.select(elm.node().firstChild)
+      if (keyPool.indexOf(d.data.key) !== -1){
+        elm.classed("row-active", !elm.classed("row-active"))
+        elmBackground.classed("row-background-active", !elmBackground.classed("row-background-active"))
+      }
+    })
+  },
+
+  activateCol: function(colNum){
+    d3.selectAll(".matrix-column").classed("column-active", function(d, i) {
+      return  colNum === i;
+    })
+  },
+
+  deactivateCol: function(rowNum){
+    d3.selectAll(".matrix-column").classed("column-active", false)
+  },
+
+  toggleMultipleCol: function(keyPool){
+    d3.selectAll(".matrix-column").each(function(c, j){
+      var elm = d3.select(this)
+      if (keyPool.indexOf(c.data.key) !== -1){
+        elm.classed("column-active", !elm.classed("column-active"))
+      }
+    })
+  },
+
+  toggleTooltip: function(selection){
+    var tooltipSelection = d3.select(selection)
+    tooltipSelection.classed("tooltips-active", !tooltipSelection.classed("tooltips-active"))
+  },
+
+  // re-sort .matrix-row to restore rect element order
+  sortRows: function(){
+    var self = this
+    // convert NodeList > Array
+    var matrixRows = Array.prototype.slice.call(d3.selectAll(".matrix-row")._groups[0])
+
+    // sort based on transform.translateX
+    matrixRows.sort(function(a, b){
+      var test = /.*\,(.+)\).*/
+      return a.getAttribute("transform").match(test)[1] - b.getAttribute("transform").match(test)[1]
+    })
+
+    // apply order to this.state.svg
+    matrixRows.each(function(n){
+      self.liftToTop(n)
+    })
+  }
+
+})
+
+
+
+/**
+ * Term Class
+ */
+
+var Term = Class.create({
+
+  initialize: function(key, text, link){
+    this.key = key
+    this.text = text
+    this.link = link // type [String]
+    this.linkContent = new Array() // [term]
+  },
+
+  print: function(){
+    console.log(this.key + ' : ' + this.text)
+  },
+
+  hasKey: function(k){
+    return this.key === k
+  },
+
+  populateWith: function(otherTerm){
+    // @param otherTerm: array of term object to choose from
+    this.link.each(function(l){
+      var filtered = otherTerm.filter(function(s){ return s.key === l })
+      this.linkContent = this.linkContent.concat(filtered)
+    }, this)
+
+  }
+})
+
+
+var Symptom = Class.create(Term, {})
+var Disorder = Class.create(Term, {})
+
+
+
+/**
+ * Matrix Class
+ */
+
+var Matrix = Class.create({
+  initialize: function(){
+    this.grid = new Array()
+  },
+
+  addRow: function(arr){
+    this.grid.push(arr)
+    return this.grid[this.grid.length-1]
+  }
+})
+
+/**
+ * Data Handler Class
+ */
+
+var dataHandler = Class.create({
+  initialize: function(inputData, config){
+    this.config = config
+
+    this.inputData = inputData
+    this.procData = this.preProcess(this.inputData)
+    this.popData = this.populateLinkContent(this.procData)
+    this.matrix = this.toMatrix(this.popData)
+  },
+
+  // utility for sorting data
+  setUpOrderingByFreq: function(data){
+    var config = this.config
+    // sort symptom based on the number of connected disorders
+    data.symptom.sort(function(a, b){return b.link.length - a.link.length; })
+    data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
+
+    // do not sort data.disorder because its ranked already
+  },
+
+  populateLinkContent: function(data){
+    data.disorder.each(function(d){
+      d.populateWith(data.symptom)
+    })
+    return data
+  },
+
+  // preprocess data into correct data structure
+  preProcess: function(inputData){
+    var config = this.config
+    var procData = {
+      "disorder": [],
+      "symptom": []
+    }
+
+    // data = [{disorder}, {disorder}, ...]
+    //          disorder = {key, text, {symptom}}
+    //                                  symptom = {key, text}
+    inputData.each(function(d){
+
+      // populate procData.symptom
+      d.symptom.each(function(s){
+        // construct non duplicate array
+        var idx = procData.symptom.map(function(x){return x.key;}).indexOf(s.key);
+        if (idx === -1){
+          // push new symptom object if not exist
+          procData.symptom.push(new Symptom(s.key, s.text, [d.key]))
+        } else {
+          // add to symptom.link if exists
+          procData.symptom[idx].link.push(d.key)
+        }
+      })
+
+      // populate procData.disorder
+      procData.disorder.push(new Disorder(d.key, d.text, d.symptom.map(function(x){return x.key;})))
+    })
+
+    return procData
+  },
+
+  // pre Process data to matrix
+  toMatrix: function(data){
+
+    // ordering of raw data
+    this.setUpOrderingByFreq(data)
+
+    // populate matrix
+    var matrix = new Matrix()
+    data.disorder.each(function(d, i){
+
+      // construct row
+      var row = matrix.addRow([])
+      Object.defineProperty(row, 'data', {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: d
+      })
+      Object.defineProperty(row, 'x', {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: i
+      })
+
+
+      // construct cell for curr row
+      data.symptom.each(function(s, j){
+        row[j] = {
+          x: i,
+          y: j,
+          z: (d.link.indexOf(s.key) != -1)? true: false
+        }
+        Object.defineProperty(row[j], 'data', {
+          enumerable: false,
+          configurable: true,
+          writable: true,
+          value: s
+        })
+      })
+
+    })
+    return matrix.grid
+  }
+
+}) // end dataHandler class

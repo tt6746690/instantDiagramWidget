@@ -2,11 +2,20 @@
 body {
      margin: 0;
      padding: 0;
-     text-align: center;
 }
 
 
 
+#outsideContainer {
+  float:left;
+}
+
+#insideContainer {
+     float: left;
+     border:0px solid #000;
+     overflow-x: scroll;
+     overflow-y: hidden;
+}
 
 
 .background {
@@ -31,16 +40,16 @@ body {
 }
 
 .matrix-cell {
-  fill: #9cdee2;
+  fill: #b4f0c9;
 }
 
 .cell-mouse-over {
-  fill: #50a1a6;
+  fill: #5caf7a;
 }
 
 
 
-.row-active > .matrix-row-background {
+.row-background-active {
   fill: #ebebeb;
   opacity: 0.5;
 }
@@ -53,11 +62,14 @@ body {
 
 
 .row-active > a > text {
-  fill: #000000;
+  fill: #00d94e;
+  font-size: 14px;
+  stroke-width: 2
 }
 
 .column-active > text {
-  fill: #000000;
+  fill: #00d94e;
+  font-size: 18px
 }
 
 

@@ -1,26 +1,54 @@
 
 var Term = Class.create({
 
-  initialize: function(key, text){
+  initialize: function(key, text, link){
     this.key = key
     this.text = text
-  },
-
-  getKey: function(){
-    return this.key
-  },
-  getText: function(){
-    return this.text
+    this.link = link // type [String]
+    this.linkContent = new Array() // [term]
   },
 
   print: function(){
     console.log(this.key + ' : ' + this.text)
+  },
+
+  hasKey: function(k){
+    return this.key === k
+  },
+
+  populateWith: function(selection){
+    // @param selection: array of term object to choose from
+    this.link.each(function(l){
+      var filtered = selection.filter(function(s){ return s.key === l })
+      this.linkContent = this.linkContent.concat(filtered)
+    }, this)
+
   }
 })
 
 
 var Symptom = Class.create(Term, {})
 var Disorder = Class.create(Term, {})
+
+
+var Cell = Class.create({
+  initialize: function(x, y, params){
+    this.x = x
+    this.y = y
+    params && Object.extend(this, params)
+  }
+})
+//
+// var Matrix = Class.create({
+//   initialize: function(){
+//     this.grid = new Array(new Array)
+//   },
+//
+//   addCell: function(cell){
+//
+//   }
+// })
+//
 
 
 
@@ -31,19 +59,25 @@ var dataHandler = Class.create({
     // data s...
     this.inputData = inputData
     this.procData = this.preProcess(this.inputData)
-    this.matrix = this.toMatrix(this.procData)
+    this.popData = this.populateLinkContent(this.procData)
+    this.matrix = this.toMatrix(this.popData)
   },
 
   // utility for sorting data
-  _setupOrderingByFreq: function(data){
+  setUpOrderingByFreq: function(data){
     var config = this.config
     // sort symptom based on the number of connected disorders
     data.symptom.sort(function(a, b){return b.link.length - a.link.length; })
     data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
-    // sort disorder based on the number of connected symptoms
-    // may have to comment this out if the order of disorder is has meaning...
-    // data.disorder.sort(function(a, b) { return b.link.length - a.link.length; })
-    // data.disorder = data.disorder.slice(0, config.numDisorderdisplayed)
+
+    // do not sort data.disorder because its ranked already
+  },
+
+  populateLinkContent: function(data){
+    data.disorder.each(function(d){
+      d.populateWith(data.symptom)
+    })
+    return data
   },
 
   // preprocess data into correct data structure
@@ -53,53 +87,45 @@ var dataHandler = Class.create({
       "disorder": [],
       "symptom": []
     }
+
     // data = [{disorder}, {disorder}, ...]
+    //          disorder = {key, text, {symptom}}
+    //                                  symptom = {key, text}
     inputData.each(function(d){
-      // populate symptom
+
+      // populate procData.symptom
       d.symptom.each(function(s){
-        var symptom = {
-          key: s.key,
-          text: s.text,
-          link: [d.key]
-        }
         // construct non duplicate array
-        var idx = procData.symptom.map(function(x){return x.key;}).indexOf(s.key)
-        if(idx === -1){
-          // push new symptom to array
-          procData.symptom.push(symptom)
+        var idx = procData.symptom.map(function(x){return x.key;}).indexOf(s.key);
+        if (idx === -1){
+          // push new symptom object if not exist
+          procData.symptom.push(new Symptom(s.key, s.text, [d.key]))
         } else {
-          // update symptom.link for symptom already pushed previously
+          // add to symptom.link if exists
           procData.symptom[idx].link.push(d.key)
         }
       })
 
-      // populate disorder
-      var disorder = {
-        key: d.key,
-        text: d.text,
-        link: []
-      }
-      d.symptom.each(function(s){
-        var i = procData.symptom.map(function(x){return x.key}).indexOf(s.key)
-        disorder.link.push(procData.symptom[i].key)
-      })
-      procData.disorder.push(disorder)
+      // populate procData.disorder
+      procData.disorder.push(new Disorder(d.key, d.text, d.symptom.map(function(x){return x.key;})))
     })
+
     return procData
   },
 
   // pre Process data to matrix
   toMatrix: function(data){
 
-
     // ordering of raw data
-    this._setupOrderingByFreq(data)
+    this.setUpOrderingByFreq(data)
 
     // populate matrix
     var matrix = []
     data.disorder.each(function(d, i){
       // construct row
       var row = []
+
+
       Object.defineProperty(row, 'data', {
         enumerable: false,
         configurable: true,
@@ -148,7 +174,7 @@ var Diagram = Class.create({
 
 
     // this.state.matrix = this.toMatrix(this.state.data)
-    this.state.scale = this.setupScale()
+    this.state.scale = this.setUpScale()
 
     this._destroy()
     this.draw()
@@ -191,7 +217,7 @@ var Diagram = Class.create({
   },
 
   // set up x and y scale range
-  setupScale: function(){
+  setUpScale: function(){
     var config = this.config
     var Scale = {
       x: d3.scaleBand().rangeRound([0, config.width]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),

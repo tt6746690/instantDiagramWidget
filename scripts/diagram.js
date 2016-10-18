@@ -1,4 +1,8 @@
 
+/**
+ * Term Class
+ */
+
 var Term = Class.create({
 
   initialize: function(key, text, link){
@@ -31,32 +35,46 @@ var Symptom = Class.create(Term, {})
 var Disorder = Class.create(Term, {})
 
 
-var Cell = Class.create({
-  initialize: function(x, y, params){
-    this.x = x
-    this.y = y
-    params && Object.extend(this, params)
+
+/**
+ * Matrix Class
+ */
+
+var Matrix = Class.create({
+  initialize: function(){
+    this.grid = new Array()
+  },
+
+  addRow: function(arr){
+    this.grid.push(arr)
+    return this.grid[this.grid.length-1]
   }
 })
 //
-// var Matrix = Class.create({
-//   initialize: function(){
-//     this.grid = new Array(new Array)
-//   },
+// var m = new Matrix()
+// m.grid.push([1,2,3])
+// m.grid.push([2,3,4])
+// var re = m.addRow([])
+// var re2 = m.addRow([])
 //
-//   addCell: function(cell){
+// re.push(1)
+// re.push(2)
 //
-//   }
-// })
-//
+// console.log(m.grid)
+
+// m.grid[1][0] = 1
+
+// console.log(m.addRow)
 
 
+/**
+ * Data Handler Class
+ */
 
 var dataHandler = Class.create({
   initialize: function(inputData, config){
     this.config = config
 
-    // data s...
     this.inputData = inputData
     this.procData = this.preProcess(this.inputData)
     this.popData = this.populateLinkContent(this.procData)
@@ -120,24 +138,25 @@ var dataHandler = Class.create({
     this.setUpOrderingByFreq(data)
 
     // populate matrix
-    var matrix = []
+    var matrix = new Matrix()
     data.disorder.each(function(d, i){
+
       // construct row
-      var row = []
-
-
+      var row = matrix.addRow([])
       Object.defineProperty(row, 'data', {
         enumerable: false,
         configurable: true,
         writable: true,
         value: d
       })
+
+      // construct cell for curr row
       data.symptom.each(function(s, j){
         row[j] = {
           x: i,
-          y: j
+          y: j,
+          z: (d.link.indexOf(s.key) != -1)? true: false
         }
-        row[j].z = (d.link.indexOf(s.key) != -1)? true: false
         Object.defineProperty(row[j], 'data', {
           enumerable: false,
           configurable: true,
@@ -145,38 +164,34 @@ var dataHandler = Class.create({
           value: s
         })
       })
-      matrix[i] = row
+
     })
-    console.log(matrix)
-    return matrix
+    return matrix.grid
   }
-
-
 
 }) // end dataHandler class
 
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
+/**
+ * Diagram Class
+ */
 
 var Diagram = Class.create({
 
   initialize: function(domElt, data, options){
-    this.config = this.resolveConfig(options, domElt)
+
+    this.config = this._resolveConfig(options, domElt)
 
     this.state = {}
-    // this.state.data = this.preProcess(data)
-
     this.state.dataHandler = new dataHandler(data, this.config)
-    this.state.data = this.state.dataHandler.procData
+    this.state.data = this.state.dataHandler.popData
     this.state.matrix = this.state.dataHandler.matrix
-
-
-    // this.state.matrix = this.toMatrix(this.state.data)
     this.state.scale = this.setUpScale()
+    this.state.selection = this._specifySelect()
 
-    this._destroy()
+    this.state.actionDispatcher = new actionDispatcher()
+
+    this.destroy()
     this.draw()
   },
 
@@ -198,8 +213,21 @@ var Diagram = Class.create({
     numDisorderdisplayed: 20,
     innerPadding: .1
   },
+
+
+  _specifySelect: function(){
+    var state = this.state
+
+    return {
+      row: function(rowNum){
+        return state.row.filter(function(x,i){return i === rowNum;})
+      }
+    }
+  },
+
+
   // resolve internal configs and user specified options
-  resolveConfig: function(options, domElt){
+  _resolveConfig: function(options, domElt){
     // deep clone prevent prototype.internalConfig from mutating
     var intConf = JSON.parse(JSON.stringify(this.internalConfig))
     intConf.domElement = domElt
@@ -207,12 +235,12 @@ var Diagram = Class.create({
   },
 
   // destroy upon removal
-  _destroy: function(){
+  destroy: function(){
     this.config.domElement.firstDescendant() && this.config.domElement.firstDescendant().remove()
   },
 
   // reload using stored data and config
-  _reload: function(){
+  reload: function(){
     this.draw()
   },
 
@@ -255,6 +283,10 @@ var Diagram = Class.create({
     state.scale.y.domain(state.data.disorder.map(function(d){return d.text}))
 
 
+    /**
+     * COLUMNS
+     */
+
     state.column = state.svg.selectAll(".matrix-column")
         .data(state.matrix[0]) // first row
       .enter().append("g")
@@ -282,6 +314,9 @@ var Diagram = Class.create({
           console.log('hi')
         }
 
+    /**
+     * Row
+     */
 
     state.row = state.svg.selectAll(".matrix-row")
         .data(state.matrix)
@@ -296,8 +331,6 @@ var Diagram = Class.create({
         .attr("width", config.width)
         .attr("height", state.scale.y.bandwidth())
 
-
-
     state.row
       .append("a")
         .attr("href", function(d){
@@ -311,6 +344,10 @@ var Diagram = Class.create({
         .attr("y", state.scale.y.bandwidth() / 2)
         .attr("text-anchor", "end")
         .text(function(d, i) { return d.data.text; });
+
+    /**
+     * Cell
+     */
 
     state.cellGroup = state.row.selectAll("matrix-cell-group")
         .data(function(d){return d})
@@ -344,62 +381,38 @@ var Diagram = Class.create({
         .attr("width", state.scale.x.bandwidth())
         .attr("height", state.scale.y.bandwidth())
         .style("opacity", function(d) { return d.z === true ? 1 : 0})
-        .on("mouseover", cellmouseover)
-        .on("mouseout", cellmouseout)
+        .on("mouseover", function(d, i, j){
+          // d <==> current cell object {x,y,z}
+          // i <==> column index
+          // j <==> all rect elem in curr row
+          // this <==> global window
+          // self <==> curr rect elem
+          var self = j[i]
 
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.toggleCell(self)
+          Dispatcher.activateRow(self.__data__.x)
+          Dispatcher.activateCol(self.__data__.y)
 
-        // cell mouseover behaviour
-        function cellmouseover(cell){
-          var that = this
-          // change cell color by css class
-          d3.select(this).classed("cell-mouse-over", true)
-
-          // change row/column color by css class
-          d3.selectAll(".matrix-row").classed("row-active", function(d, i) {
-            return  that.__data__.x === i;
-          });
-          d3.selectAll(".matrix-column").classed("column-active", function(d, i) {
-            return  that.__data__.y === i;
-          });
-
-          // tooltips popup
-          // happens only if there is a link in the cell
-          if (cell.z){
-            var parentRow = this.parentNode.parentNode
-            var parentMatrix = parentRow.parentNode
-
-            parentMatrix.appendChild(parentRow)
-            d3.select(this.previousSibling).classed("tooltips-active", true)
+          // tooltips popup for cell with value in z
+          if (self.__data__.z){
+            // list parentRow to top so that tooltip displays properly
+            var parentRow = this.state.selection.row(self.__data__.x).node()
+            Dispatcher.liftToTop(parentRow)
+            Dispatcher.toggleTooltip(self.previousSibling)
           }
+        }.bind(this)) // end mouseover
+        .on("mouseout",  function(d, i, j){
+          var self = j[i]
+          var Dispatcher = this.state.actionDispatcher
+          Dispatcher.toggleCell(self)
 
-        }
+          if (self.__data__.z){
+            Dispatcher.sortRows()
+            Dispatcher.toggleTooltip(self.previousSibling)
+          }
+        }.bind(this)) // end mouseout()
 
-        // cell mouseout behavior
-        function cellmouseout(cell){
-          // remove cell color
-          d3.select(this).classed("cell-mouse-over", false)
-
-          //-- Remove tooltips
-          // re-sort .matrix-row to restore rect element order
-          var parentMatrix = this.parentNode.parentNode.parentNode
-          // convert NodeList > Array
-          var childNodesArray = Array.prototype.slice.call(parentMatrix.childNodes, 0)
-          // filter for class with .matrix-row
-          childNodesArray = childNodesArray.filter(function(n){
-            return n.classList.contains("matrix-row")
-          })
-          // sort based on transform.translateX
-          childNodesArray.sort(function(a, b){
-            var test = /.*\,(.+)\).*/
-            return a.getAttribute("transform").match(test)[1] - b.getAttribute("transform").match(test)[1]
-          })
-          // apply order to .svg-group
-          childNodesArray.each(function(n){
-            parentMatrix.appendChild(n)
-          })
-          // disable tooltips active style
-          d3.select(this.previousSibling).classed("tooltips-active", false)
-        }
 
     } // end createMatrix
 }) // end class.create

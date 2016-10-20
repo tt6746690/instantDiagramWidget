@@ -1,0 +1,68 @@
+{{velocity filter="indent" wiki="false"}}
+#if ($xcontext.action == 'get')
+  $response.setContentType("application/json")##
+  ##$response.setHeader("X-ReqNo", "$!request.reqNo")##
+
+
+  #if ("$!request.q" != '')##
+    #set($limit = $mathtool.toInteger("$!{request.limit}"))
+    #if (!$limit || $limit < 0)
+      #set($limit = 20)
+    #end
+    #set($symptoms = [])
+    #set($freeSymptoms = [])
+    #foreach ($piece in $!request.getParameterValues('symptom'))
+      #set($discard = $symptoms.add($piece))
+    #end
+    #foreach ($piece in $!request.getParameterValues('free_symptom'))
+      #set($discard = $freeSymptoms.add($piece))
+    #end
+
+
+
+    #set($results = $services.diagnosis.get($symptoms, $freeSymptoms, $limit))
+    #if ($results.size() > 0)
+
+      #set($disorders = [])
+      #foreach ($mimTerm in $results)
+
+        ## Get HPO id/name for every symptom of disorder
+        #set($s = [])
+        #foreach ($hpoTerm in $mimTerm.get("actual_symptom"))
+          #set($discard = $s.add({'key' : $hpoTerm, 'text' : $services.vocabularies.resolveTerm($hpoTerm).name}))
+        #end
+
+
+        ## Get MIM id/name for current disorder
+        #set($name = $mimTerm.getName())
+        #set($indexOfSeparator = $name.indexOf(';'))
+        #if ($indexOfSeparator > 0)
+          #set($shortName = $name.substring(0, $indexOfSeparator))
+          #set($fullName = $name.replaceAll(';;', ';'))
+        #else
+          #set($shortName = $name)
+          #set($fullName = $name)
+        #end
+        #set($id = $mimTerm.getId())
+
+        ## Push current disorder to $disorders array
+        #set( $disregard = $disorders.add({
+          'key': $id,
+          'text': $shortName,
+          'symptom': $s
+        }))
+
+      #end ## foreach item
+
+      $response.setContentType("application/json")
+      $jsontool.serialize(${disorders})
+
+    #end## results.size() > 0
+
+
+
+  #end## non-empty query
+#end## get action
+
+
+{{/velocity}}

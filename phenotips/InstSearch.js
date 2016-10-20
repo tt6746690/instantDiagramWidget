@@ -1,4 +1,9 @@
-/**
+document.observe('xwiki:dom:loading', function() {
+
+
+  var loadMatrixDiagram = function(data){
+    require(["$services.webjars.url('d3js', 'd3.js')"], function(d3) {
+      /**
  * Diagram Class
  */
 
@@ -35,7 +40,7 @@ var Diagram = Class.create({
       width: 140,
       height: 100
     },
-    numSymptomdisplayed: 30,
+    numSymptomdisplayed: 200,
     numDisorderdisplayed: 20,
     innerPadding: .1,
     cellWidth: 25,
@@ -565,3 +570,354 @@ var dataHandler = Class.create({
   }
 
 }) // end dataHandler class
+
+
+        // instantiation
+        var d = new Diagram(
+          $('instantSearchDiagram'),
+          data, {})
+    }); // end require d3js
+  } // end loadMatrixDiagram
+
+
+  var defaultSearchTerms = $('defaultSearchTerms');
+  var defaultSearchTermsInput = $('defaultSearchTermsInput');
+  var defaultSearchTermIDsInput = $('defaultSearchTermIDsInput');
+  var customSearchTermsInput = $('customSearchTermsInput');
+
+  var omimField = $('prefix') && $($('prefix').value + 'omim_id');
+
+  var services = {
+    'omim' : {
+       'script' : new XWiki.Document('DiseasePredictService', 'PhenoTips').getURL('get', 'outputSyntax=plain') + "&q=",
+       'source' : [defaultSearchTermIDsInput],
+       'target' : $('omim-search-results'),
+       'suggestFor' : omimField,
+       'tooltip': 'omim-disease-info',
+       'ajaxCategory': 'default'
+    },
+    'diffDiagnosis' : {
+       'script' : new XWiki.Document('DiffDiagnosisService', 'PhenoTips').getURL('get', 'format=html') + "&q=",
+       'source' : [defaultSearchTermIDsInput],
+       'target' : $('diffDiagnosis-search-results'),
+       'suggestFor' : $('quick-phenotype-search'),
+       'tooltip': 'phenotype-info',
+       'ajaxCategory': 'updater'
+    }
+  };
+
+  if (!defaultSearchTerms || !defaultSearchTermsInput || (!services.omim.target && !services.diffDiagnosis.target)) {return;}
+
+  var cache = {'all' : {}, 'displayed' : {}};
+
+  var updateSearchValue = function() {
+    var prevValue = defaultSearchTermsInput.value;
+    defaultSearchTermsInput.value = '';
+    defaultSearchTermIDsInput.value = '';
+    var termNames = [];
+    defaultSearchTerms.select('.search-term:not(.disabled)').each(function(term) {
+      termNames.push(term.innerHTML);
+      defaultSearchTermsInput.value += ' "' + term.innerHTML + '"';
+      defaultSearchTermIDsInput.value += term.__key + ' ';
+    });
+    if (defaultSearchTermsInput.value != prevValue) {
+      document.fire('phenotips:phenotypeChanged', {phenotype: cache});
+      doSearch('omim');
+      doSearch('diffDiagnosis');
+    }
+  }
+
+  var updateDefaultSearchTerms = function() {
+    var container = new Element('div', { 'class' : 'default-search-terms-container'});
+    for (var k in cache.displayed) {
+       var obj = cache.all[k];
+       if (obj) {
+          var elt = new Element('span', {'class' : 'search-term ' + obj.type}).update(obj.text);
+          elt.__key = obj.key;
+          elt.title = obj.disabled && "$services.localization.render('phenotips.patientSheetCode.diagnosisZone.clickToEnable')" || "$services.localization.render('phenotips.patientSheetCode.diagnosisZone.clickToDisable')";
+          if (obj.disabled) {
+            elt.addClassName('disabled');
+          }
+          container.insert(elt);
+          elt.observe('click', function(event) {
+             var target = event.element();
+             target.toggleClassName('disabled');
+             cache.all[target.__key].disabled = target.hasClassName('disabled');
+             target.title = cache.all[target.__key].disabled && "$services.localization.render('phenotips.patientSheetCode.diagnosisZone.clickToEnable')" || "$services.localization.render('phenotips.patientSheetCode.diagnosisZone.clickToDisable')";
+             updateSearchValue();
+          })
+       }
+    }
+    defaultSearchTerms.update(container);
+    updateSearchValue();
+  }
+
+  var requestCreated = function(service, request) {
+    console.log('request at requestCreated is: ')
+    console.log(request)
+    service.target.addClassName('loading');
+    service.target.select('li').each(function(element){element.update(' ')});
+  }
+  var responseReceived = function(service, request) {
+    if (request && request.getHeader('X-ReqNo') == service.expectedReqNo) {
+      service.target.removeClassName('loading');
+    } else {
+      request.request.container = {};
+    }
+
+
+    if(service.ajaxCategory === "default"){
+      loadMatrixDiagram(JSON.parse(request.responseText));
+    }
+  }
+
+  var updateDone = function(service) {
+    if (service.suggestFor  && service.suggestFor._suggestPicker) {
+        service.target.select('li').each(function (item) {
+          if (item.down('input[type=checkbox]')) {return;}
+          var idElt = item.down('.id');
+          var nameElt = item.down('.title');
+          var id = idElt && idElt.title;
+          var name = item.down('.title a') && item.down('.title a').innerHTML || item.down('.title') && item.down('.title').innerHTML;
+          var categoryElt = item.down('.term-category');
+          if (id && name) {
+            if (service.suggestFor.hasClassName('generateYesNo')) {
+              // generate yn pickers
+              var positiveName = service.suggestFor.name.replace(/__suggested$/, '');
+              var negativeName = positiveName.replace(/(_\d+)_/, "$1_negative_");
+              var ynpicker = YesNoPicker.generatePickerElement([
+                    {type: 'yes', name: positiveName, id: '', selected: isValueSelected(positiveName, id)},
+                    {type: 'no' , name: negativeName, id: '', selected: isValueSelected(negativeName, id)}
+                  ], id, name, true, nameElt);
+              item.insert({top: ynpicker});
+
+              ynpicker.up().select('label, .yes-no-picker-label').invoke('observe', 'click', function(event) {
+               var option = Event.findElement(event);
+               var input = option.down('input[type="checkbox"]') || option.previous('.yes-no-picker').down('.yes input[type="checkbox"]'); // defaults to 'Y' when clicking on the text
+               if (!input) {return;}
+               if (input.checked) {
+                 var negative = option.hasClassName('no');
+                 var categoryClone = categoryElt.clone(true);
+                 if (negative) {
+                     categoryClone.insert(new Element('input', {type: 'hidden', name : 'fieldName', value : input.name}));
+                 }
+                 service.suggestFor._suggestPicker.silent = true;
+                 service.suggestFor._suggestPicker.acceptSuggestion({'id' : id, 'value' : name, 'category' : categoryClone, 'negative' : negative});
+                 service.suggestFor._suggestPicker.silent = false;
+                 new XWiki.widgets.Notification("$services.localization.render('phenotips.PatientSheetCode.added')".replace("__name__", name), 'done');
+               } else {
+                 var existingValue = $(service.suggestFor.id + '_' + input.value);
+                 if (existingValue) {
+                   existingValue.checked = false;
+                   new XWiki.widgets.Notification("$services.localization.render('phenotips.PatientSheetCode.removed')".replace("__name__", name), 'done');
+                 }
+               }
+            });
+
+            // enableHighlightChecked(ynpicker.down('.yes input'));
+            // enableHighlightChecked(ynpicker.down('.no input'));
+            } else {
+            // generate simple checkboxes
+            var trigger = new Element('input', {'type' :  'checkbox', 'value' : id, 'title' : 'Select', id : 'result__' + id});
+            var existingValue = $(service.suggestFor.id + '_' + id);
+            if (existingValue && existingValue.checked) {
+              trigger.checked = true;
+            }
+            trigger.__suggestion = {'id' : id, 'value' : name};
+            nameElt.wrap('label', {'for' : 'result__' + id});
+            idElt.insert({'before' : trigger});
+            trigger.observe('click', function(event) {
+               var input = Event.findElement(event, 'input[type=checkbox]');
+               if (input.checked) {
+                 service.suggestFor._suggestPicker.silent = true;
+                 service.suggestFor._suggestPicker.acceptSuggestion(input.__suggestion);
+                 service.suggestFor._suggestPicker.silent = false;
+                 new XWiki.widgets.Notification("$services.localization.render('phenotips.PatientSheetCode.added')".replace("__name__", input.__suggestion.value ), 'done');
+               } else {
+                 var existingValue = $(service.suggestFor.id + '_' + input.value);
+                 if (existingValue) {
+                   existingValue.up('li').remove();
+                   new XWiki.widgets.Notification("$services.localization.render('phenotips.PatientSheetCode.removed')".replace("__name__", input.__suggestion.value), 'done');
+                 }
+               }
+            });
+            } // generate simple checkboxes, not yn pickers
+            // -----------------------------------------------------
+            // Insert info boxes where available
+            if (typeof(service.tooltip) != 'undefined') {
+             item.insert(new Element('span', {'class' : 'xHelpButton fa fa-info-circle ' + service.tooltip, 'title' : id}));
+            }
+            // -----------------------------------------------------
+            // Enable navigation by pages for trait suggestions
+            service.target.select(".navigation").each(function(navButton){
+              navButton.observe("click", function(event) {
+                doSearch('diffDiagnosis', navButton.select("input")[0].value, 0);
+              });
+            });
+          } //End of ID and Name conditional
+        }); //End of loop over all li
+    }
+    if (service.target.__hiddenParent) {
+      if (service.target.down('li')) {
+         //has results
+         service.target.__hiddenParent.removeClassName('hidden');
+      } else {
+         service.target.__hiddenParent.addClassName('hidden');
+      }
+    }
+    Event.fire (document, 'xwiki:dom:updated', {'elements' : [service.target]});
+  };
+
+  var doSearch = function(service, page, searchDelay) {
+    var data = services[service];
+    if (!data || !data.target || !data.script) {return;}
+    if (data.__pendingRequest !== undefined) {
+      window.clearTimeout(data.__pendingRequest);
+      data.__pendingRequest = undefined;
+    }
+    data.target.__initialized || (data.target.__initialized = true) && (data.target.__hiddenParent = data.target.up('.background-search.hidden'));
+    if (!data.expectedReqNo) {
+      data.expectedReqNo = 0;
+    }
+    //var queryString = (customSearchTermsInput && (customSearchTermsInput.value.strip() + ' ') || '') + defaultSearchTermsInput.value.strip();
+    var queryString = '';
+    var parameters = {};
+    for (var k in cache.displayed) {
+      var obj = cache.all[k];
+      if (obj && !obj.disabled) {
+        var list = parameters[obj.type];
+        if (!list) {
+          list = [];
+          parameters[obj.type] = list;
+        }
+        list.push(obj.key);
+      }
+    }
+
+    if (page !==  undefined) {
+      parameters['page'] = page;
+    }
+
+    data.source.each(function(source) {
+       queryString += ((source && source.value.strip()) + ' ') || '';
+    });
+
+    searchDelay = (searchDelay === undefined) ? 0.8 : searchDelay;
+
+    console.log('current paramters: ')
+    console.log(parameters)
+    console.log('cache: ')
+    console.log(cache)
+    data.__pendingRequest = function() {
+      data.__pendingRequest = undefined;
+
+      if(data.ajaxCategory === "updater"){
+        new Ajax.Updater(data.target, data.script + encodeURIComponent(queryString.strip()) + "&reqNo=" + ++data.expectedReqNo, {
+          parameters: parameters,
+          onCreate : requestCreated.bind(this, data),
+          onSuccess : responseReceived.bind(this, data),
+          onComplete : updateDone.bind(this, data)
+        });
+      }
+      if(data.ajaxCategory === "default"){
+        new Ajax.Request(data.script + encodeURIComponent(queryString.strip()) + "&reqNo=" + ++data.expectedReqNo, {
+          parameters: parameters,
+          onCreate : requestCreated.bind(this, data),
+          onSuccess: responseReceived.bind(this, data),
+          onComplete : updateDone.bind(this, data)
+        });
+      }
+
+    }.bind(this).delay(searchDelay);
+
+
+  }
+
+  document.observe('phenotype:selected', function(event) {
+    if (!event.memo || !event.memo.key || !event.memo.element) {return;}
+    var key = event.memo.key;
+    var text = event.memo.text || event.memo.key;
+    var obj = cache.all[key];
+    var yesSelected = event.memo.element.up('.yes-no-picker').down('.yes input').checked;
+    var noSelected = event.memo.element.up('.yes-no-picker').down('.no input').checked;
+    if (yesSelected || noSelected) {
+      if (!obj) {
+        obj = {'key' : key, 'text' : text};
+        cache.all[key] = obj;
+      } else {
+        obj.hidden = false;
+      }
+      obj.type = noSelected ? 'not_symptom' : (key.startsWith('HP:') ? 'symptom' : 'free_symptom');
+      cache.displayed[key] = true;
+    } else {
+      if (obj) {
+        obj.hidden = true;
+        delete cache.displayed[key];
+      }
+    }
+    updateDefaultSearchTerms();
+  });
+
+  // Add global mode of inheritance and global age of onset to the search
+  document.observe('global-phenotype-meta:selected', function(event) {
+    if (!event.memo || !event.memo.key || !event.memo.element) {return;}
+    var key = event.memo.key;
+    var text = event.memo.text || event.memo.key;
+    var obj = cache.all[key];
+    if (event.memo.enable) {
+      if (!obj) {
+        obj = {'key' : key, 'text' : text, 'type' : 'symptom'};
+        cache.all[key] = obj;
+      } else {
+        obj.hidden = false;
+      }
+      cache.displayed[key] = true;
+    } else {
+      if (obj) {
+        obj.hidden = true;
+        delete cache.displayed[key];
+      }
+    }
+    updateDefaultSearchTerms();
+  });
+
+  document.observe('xwiki:dom:loaded', function() {
+    $$(".yes-no-picker").each(function(element) {
+      var yesInput = element.down('.yes input');
+      var noInput = element.down('.no input');
+      if (yesInput.name === noInput.name) {
+        // Not a phenotype
+        return;
+      }
+      var key = yesInput.value;
+      // FIXME The nextSibling part is supposed to make simple checkboxes work as well, but we're already selecting only YesNo pickers.
+      // Should be revisited to add back support for simple checkboxes.
+      var text = yesInput.title || (element.nextSibling && (element.nextSibling.firstChild && element.nextSibling.firstChild.nodeValue || element.nextSibling.nodeValue)) || key;
+      var obj = cache.all[key];
+      var enable = !element.down('.na input').checked;
+      if (enable) {
+        if (!obj) {
+          obj = {'key' : key, 'text' : text};
+          cache.all[key] = obj;
+        } else {
+          obj.hidden = false;
+        }
+        obj.type = (noInput.checked ? 'not_symptom' : (key.startsWith('HP:') ? 'symptom' : 'free_symptom'));
+        cache.displayed[key] = true;
+      } else {
+        if (obj) {
+          obj.hidden = true;
+          delete cache.displayed[key];
+        }
+      }
+    });
+    updateDefaultSearchTerms();
+  });
+
+  if (customSearchTermsInput) {
+    customSearchTermsInput.observe('keyup', function(event) {
+       doSearch('omim');
+       doSearch('diffDiagnosis');
+    });
+  }
+});

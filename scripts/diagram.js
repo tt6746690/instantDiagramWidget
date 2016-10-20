@@ -23,10 +23,10 @@ var Diagram = Class.create({
 
   // internal configs
   internalConfig: {
-    width: 1000,
+    width: 600,
     height: 500,
     margin: {
-      left: 500,
+      left: 300,
       right: 100,
       top: 150,
       bottom: 100
@@ -70,6 +70,7 @@ var Diagram = Class.create({
 
   // reload using stored data and config
   reload: function(){
+    this.destroy()
     this.draw()
   },
 

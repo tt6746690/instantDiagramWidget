@@ -6,15 +6,21 @@ body {
 
 
 
+#instantSearchDiagram {
+  margin: 0 auto;
+}
+
+
 #outsideContainer {
   float:left;
 }
 
 #insideContainer {
-     float: left;
-     border:0px solid #000;
-     overflow-x: scroll;
-     overflow-y: hidden;
+  position: absolute;
+  margin-left: 300px;
+  border:0px solid #000;
+  overflow-x: scroll;
+  overflow-y: hidden;
 }
 
 

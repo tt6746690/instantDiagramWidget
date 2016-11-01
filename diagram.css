@@ -5,22 +5,30 @@ body {
 }
 
 
-
 #instantSearchDiagram {
   margin: 0 auto;
 }
 
 
-#outsideContainer {
-  float:left;
+#leftContainer {
+  /*border:1px solid #a3c6b6;*/
+  position: absolute;
+  float: left;
+  display: inline-block;
 }
 
-#insideContainer {
+#middleContainer {
+  /*border:1px solid #80b89e;*/
   position: absolute;
-  margin-left: 300px;
-  border:0px solid #000;
-  overflow-x: scroll;
+  overflow-x: auto;
   overflow-y: hidden;
+}
+
+#rightContainer {
+  /*border:1px solid #7db59b;*/
+  position:absolute;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 
@@ -37,12 +45,11 @@ body {
 
 
 .matrix-column-text {
-  fill: #808080;
   font-size: 15px;
 }
 .matrix-row-text {
-  fill: #808080;
   font-size: 10px;
+  text-anchor: end;
 }
 
 .matrix-cell {
@@ -68,13 +75,12 @@ body {
 
 
 .row-active > a > text {
-  fill: #00d94e;
+  fill: #5caf7a;
   font-size: 14px;
   stroke-width: 2
 }
 
 .column-active > text {
-  fill: #00d94e;
   font-size: 18px
 }
 
@@ -90,4 +96,21 @@ body {
 
 .tooltips-active {
   opacity: 1
+}
+
+
+#DiagramInfoHeading {
+  font-size: 50px;
+  color: #39674b;
+  margin-bottom: 15px;
+}
+
+#DiagramInfoSubHeading {
+  font-size: 25px;
+  color: #518c67;
+}
+
+#infoDetailsTable {
+  text-align: left;
+  color: #5caf7a;
 }

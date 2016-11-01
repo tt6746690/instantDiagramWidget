@@ -29,3 +29,21 @@ symptom
     + symptom description
   + symptom or not symptom
     + boolean; whether patient has or not has the symptom
+
+
++ OMIM disorders do not include all parent of its associated phenotypes.
+
+1. boqa returns an array of disorders.
+2. get all symptoms for each disorder (=S)
+3. determine relation of each queried symptom in relation to __user selected ones__ (=U).
+
+```py
+for (s in S):
+  if(s.id is in U):
+    s.type = "exact match"
+
+```
+
+
+
++ only user selected symptoms will be displayed

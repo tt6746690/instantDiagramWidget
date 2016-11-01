@@ -9,13 +9,15 @@ var Diagram = Class.create({
     this.config = this._resolveConfig(options, domElt)
 
     this.state = {}
-    this.state.dataHandler = new dataHandler(data, this.config)
+    this.state.outsideCache = cache
+    this.state.dataHandler = new dataHandler(data, this.config, this.state)
+    this.state.completeData = this.state.dataHandler.completeData
     this.state.data = this.state.dataHandler.popData
     this.state.matrix = this.state.dataHandler.matrix
     this.state.scale = this.setUpScale()
     this.state.selection = this._specifySelect()
 
-    this.state.actionDispatcher = new actionDispatcher()
+    this.state.actionDispatcher = new actionDispatcher(this.config)
 
     this.destroy()
     this.draw()
@@ -23,19 +25,31 @@ var Diagram = Class.create({
 
   // internal configs
   internalConfig: {
-    width: 600,
+    width: 800,
     height: 500,
     margin: {
       left: 300,
-      right: 100,
-      top: 150,
+      right: 300,
+      top: 200,
       bottom: 100
+    },
+    color: {
+      default: {
+        symptom: "#b4f0c9",
+        not_symptom: "#ff9595",
+        free_symptom: "#878787"
+      },
+      highlight: {
+        symptom: "#5caf7a",
+        not_symptom: "red",
+        free_symptom: "#878787"
+      }
     },
     tooltips: {
       width: 140,
       height: 100
     },
-    numSymptomdisplayed: 30,
+    numSymptomdisplayed: 100,
     numDisorderdisplayed: 20,
     innerPadding: .1,
     cellWidth: 25,
@@ -64,8 +78,7 @@ var Diagram = Class.create({
 
   // destroy upon removal
   destroy: function(){
-    $("outsideContainer") && $("outsideContainer").remove()
-    $("insideContainer") && $("insideContainer").remove()
+    $(this.config.domElement.id).removeAllChildElement()
   },
 
   // reload using stored data and config
@@ -79,6 +92,7 @@ var Diagram = Class.create({
     var config = this.config
     config.scrollWidth = Math.max(config.width, config.numSymptomdisplayed * config.cellWidth)
 
+
     var Scale = {
       x: d3.scaleBand().rangeRound([0, config.scrollWidth]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),
       y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding])
@@ -90,9 +104,31 @@ var Diagram = Class.create({
   draw: function(){
 
     this._createSVGContainers()
-    this._createColumnHeadings()
+    this._createRowHeadings()
     this._createMatrix()
+    this._createInfoBar()
+
   },
+
+
+  toggleCompression: function(){
+    var config = this.config
+    var state = this.state
+
+    var curUpperBound = d.state.scale.x.range()[1]
+    var compress = (curUpperBound == config.scrollWidth) ? true : false
+
+    if(compress){
+      state.scale.x.rangeRound([0,config.width])
+      d3.select("middleSVG").attr("width", config.width)
+    } else {
+      state.scale.x.rangeRound([0,config.scrollWidth])
+      d3.select("middleSVG").attr("width", config.scrollWidth)
+    }
+
+    this.reload()
+  },
+
 
   // create root svg container
   _createSVGContainers: function(){
@@ -103,73 +139,103 @@ var Diagram = Class.create({
     state.scale.x.domain(state.data.symptom.map(function(s){return s.text}))
     state.scale.y.domain(state.data.disorder.map(function(d){return d.text}))
 
-    this.state.outsideSVG = d3.select('#' + config.domElement.id)
+    this.state.leftGroup = d3.select('#' + config.domElement.id)
       .append("div")
-        .attr("id", "outsideContainer")
+        .attr("id", "leftContainer")
       .append("svg")
-        .attr("width", config.margin.left)
-        .attr("height", config.height + config.margin.top)
-      .append("g")
-        .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")")
-        .attr("id", "outsideGroup")
-        .attr("class", "svg-group")
-
-    this.state.insideSVG = d3.select('#' + config.domElement.id)
-      .append("div")
-        .attr("id","insideContainer")
-        .style("width", config.width + "px")
-        .style("height", (config.height + config.margin.top) + "px")
-      .append("svg")
-        .attr("viewBox", "0,0," + config.scrollWidth + "," +(config.height + config.margin.top))
-        // .attr("width", config.width + config.margin.right)
-        .attr("width", config.scrollWidth)
-        .attr("height", config.height + config.margin.top)
+        .attr("width", config.margin.left + "px")
+        .attr("height", (config.height + config.margin.top) + "px")
       .append("g")
         .attr("transform", "translate(0," + config.margin.top + ")")
-        .attr("id", "insideGroup")
+        .attr("id", "leftGroup")
         .attr("class", "svg-group")
 
+    this.state.middleGroup = d3.select('#' + config.domElement.id)
+      .append("div")
+        .attr("id","middleContainer")
+        .style("width", config.width + "px")
+        .style("height", (config.height + config.margin.top) + "px")
+        .style("margin-left", config.margin.left + "px")
+      .append("svg")
+        .attr("width", config.scrollWidth + "px")
+        .attr("height",  (config.height + config.margin.top) + "px")
+        .attr("id", "middleSVG")
+      .append("g")
+        .attr("transform", "translate(0," + config.margin.top + ")")
+        .attr("id", "middleGroup")
+        .attr("class", "svg-group")
+
+    this.state.rightGroup = d3.select('#' + config.domElement.id)
+      .append("div")
+        .attr("id", "rightContainer")
+        .style("width", config.margin.right + "px")
+        .style("height",  (config.height + config.margin.top) + "px")
+        .style("margin-left", (config.margin.right + config.width + 10) + "px")
 
   },
 
-  _createColumnHeadings: function(){
+  _createRowHeadings: function(){
     var config = this.config
     var state = this.state
 
-    state.rowText = state.outsideSVG.selectAll(".matrix-row")
+    state.rowHeadings = state.leftGroup.selectAll(".matrix-row")
         .data(state.matrix)
       .enter().append("g")
         .attr("class", "matrix-row")
         .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
       .append("a")
         .attr("href", function(d){
-          return "http://www.omim.org/entry/" + d.data.key
+          // return "http://www.omim.org/entry/" + d.data.key
+          return
         })
         .attr("target", "_blank")
         .attr("title", "Read about this Disorder on OMIM")
       .append("text")
         .attr("class", "matrix-row-text")
-        .attr("x", 0)
+        .attr("x", config.margin.left)
         .attr("y", state.scale.y.bandwidth() / 2)
-        .attr("text-anchor", "end")
-        .text(function(d, i) { return d.data.text; })
+        .text(function(d, i) { return d.data.getShortText(); })
         .on("mouseover", function(d, i, j){
           var Dispatcher = this.state.actionDispatcher
-          Dispatcher.activateRow(d.x)
+          Dispatcher.toggleRow(d.x)
 
           var keyPool = d.data.link
           Dispatcher.toggleMultipleCol(keyPool)
+          Dispatcher.updateInfoHeading(d.data.getKey())
+          Dispatcher.updateInfoSubHeading(d.data.getShortText())
+          Dispatcher.updateInfoDetailsList(d.data.linkContent)
 
         }.bind(this))
         .on("mouseout", function(d){
           var Dispatcher = this.state.actionDispatcher
-          Dispatcher.deactivateRow(d.x)
+          Dispatcher.toggleRow(d.x)
 
           var keyPool = d.data.link
           Dispatcher.toggleMultipleCol(keyPool)
 
         }.bind(this))
 
+  },
+
+  _createInfoBar: function(){
+    var config = this.config
+    var state = this.state
+
+    state.rightGroup
+      .append("p")
+        .attr("id", "DiagramInfoHeading")
+
+    state.rightGroup
+      .append("span")
+        .attr("id", "DiagramInfoSubHeading")
+
+    var infoDetails = state.rightGroup
+      .append("div")
+        .attr("id", "infoDetails")
+
+    infoDetails
+      .append("table")
+        .attr("id", "infoDetailsTable")
   },
 
   // create matrix background
@@ -180,7 +246,7 @@ var Diagram = Class.create({
      * COLUMNS
      */
 
-    state.column = state.insideSVG.selectAll(".matrix-column")
+    state.column = state.middleGroup.selectAll(".matrix-column")
         .data(state.matrix[0]) // first row
       .enter().append("g")
         .attr("class", "matrix-column")
@@ -201,17 +267,23 @@ var Diagram = Class.create({
         .attr("y", state.scale.x.bandwidth() / 2)
         .attr("text-anchor", "start")
         .attr("transform", "rotate(-45)")
-        .text(function(d) { return d.data.text; })
+        .attr("fill", function(d){
+          return d.data.type && (config.color.default[d.data.type] || "lightgrey")
+        })
+        .text(function(d) { return d.data.getText(); })
         .on("mouseover", function(d, i, j){
           var Dispatcher = this.state.actionDispatcher
-          Dispatcher.activateCol(d.y)
+          Dispatcher.toggleColumn(d.y)
 
           var keyPool = d.data.link
           Dispatcher.toggleMultipleRow(keyPool)
+
+          Dispatcher.updateInfoHeading(d.data.getKey())
+          Dispatcher.updateInfoSubHeading(d.data.getText())
         }.bind(this))
-        .on("mouseout", function(d){
+        .on("mouseout", function(d, i, j){
           var Dispatcher = this.state.actionDispatcher
-          Dispatcher.deactivateCol(d.y)
+          Dispatcher.toggleColumn(d.y)
 
           var keyPool = d.data.link
           Dispatcher.toggleMultipleRow(keyPool)
@@ -221,7 +293,7 @@ var Diagram = Class.create({
      * Row
      */
 
-    state.row = state.insideSVG.selectAll(".matrix-row")
+    state.row = state.middleGroup.selectAll(".matrix-row")
         .data(state.matrix)
       .enter().append("g")
         .attr("class", "matrix-row")
@@ -280,28 +352,32 @@ var Diagram = Class.create({
           var self = j[i]
 
           var Dispatcher = this.state.actionDispatcher
+          var matrix = this.state.matrix
           Dispatcher.toggleCell(self)
-          Dispatcher.activateRow(self.__data__.x)
-          Dispatcher.activateCol(self.__data__.y)
+          Dispatcher.toggleRow(self.__data__.x)
+          Dispatcher.toggleColumn(self.__data__.y)
 
           // tooltips popup for cell with value in z
           if (self.__data__.z){
             // list parentRow to top so that tooltip displays properly
             var parentRow = this.state.selection.row(self.__data__.x).node()
             Dispatcher.liftToTop(parentRow)
-            Dispatcher.toggleTooltip(self.previousSibling)
+            //necesasry?
+            // Dispatcher.updateInfoSubHeading([d.data.getText(), matrix[d.x].data.getShortText()])
+
+            // Dispatcher.toggleTooltip(self.previousSibling)
           }
         }.bind(this)) // end mouseover
         .on("mouseout",  function(d, i, j){
           var self = j[i]
           var Dispatcher = this.state.actionDispatcher
           Dispatcher.toggleCell(self)
-          Dispatcher.deactivateRow(self.__data__.x)
-          Dispatcher.deactivateCol(self.__data__.y)
+          Dispatcher.toggleRow(self.__data__.x)
+          Dispatcher.toggleColumn(self.__data__.y)
 
           if (self.__data__.z){
             Dispatcher.sortRows()
-            Dispatcher.toggleTooltip(self.previousSibling)
+            // Dispatcher.toggleTooltip(self.previousSibling)
           }
         }.bind(this)) // end mouseout()
 
@@ -311,9 +387,47 @@ var Diagram = Class.create({
 
 
 
-var actionDispatcher = Class.create({
-  initialize: function(){
 
+// adding a new method to prototype
+ Element.addMethods({
+   removeAllChildElement: function(elm){
+     var elm = $(elm)
+     elm.descendants().each(function(e){
+       Event.stopObserving(e)
+     })
+     return elm.update()
+   }
+ })
+
+
+
+var actionDispatcher = Class.create({
+  initialize: function(config, state){
+    this.config = config
+    this.state = state
+  },
+
+  updateInfoHeading: function(text){
+    d3.select("#DiagramInfoHeading").text(text)
+  },
+
+  updateInfoSubHeading: function(text){
+    if(Array.isArray(text)){
+      d3.select("#DiagramInfoSubHeading").text(text.join("\n"))
+    }
+    d3.select("#DiagramInfoSubHeading").text(text)
+  },
+
+
+
+  updateInfoDetailsList: function(linkContent){
+    $("infoDetailsTable").removeAllChildElement()
+    d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
+        .data(linkContent)
+      .enter().append("tr")
+        .attr("class", "infoDetailsTableItem")
+      .append("th")
+        .text(function(d){return d.text})
   },
 
   liftToTop: function(elem){
@@ -327,24 +441,21 @@ var actionDispatcher = Class.create({
     cellSelection.classed("cell-mouse-over", !cellSelection.classed("cell-mouse-over"))
   },
 
-  activateRow: function(rowNum){
-
+  toggleRow: function(rowNum){
     // highlight row text
-    d3.selectAll(".matrix-row").classed("row-active", function(d, i) {
-      return  rowNum === i;
+    d3.selectAll(".matrix-row")
+      .filter(function(d, i){ return rowNum === i})
+      .classed("row-active", function(d, i) {
+      return !d3.select(this).classed("row-active")
     })
     // highlight background
-    d3.selectAll(".matrix-row-background").classed("row-background-active", function(d, i){
-      return rowNum === d.x;
+    d3.selectAll(".matrix-row-background")
+      .filter(function(d){ return rowNum === d.x})
+      .classed("row-background-active", function(d, i){
+      return !d3.select(this).classed("row-background-active")
     })
-
-
   },
 
-  deactivateRow: function(rowNum){
-    d3.selectAll(".matrix-row").classed("row-active", false)
-    d3.selectAll(".matrix-row-background").classed("row-background-active", false)
-  },
 
   toggleMultipleRow: function(keyPool){
     d3.selectAll(".matrix-row").each(function(d, i){
@@ -357,21 +468,39 @@ var actionDispatcher = Class.create({
     })
   },
 
-  activateCol: function(colNum){
-    d3.selectAll(".matrix-column").classed("column-active", function(d, i) {
-      return  colNum === i;
+  toggleColumn: function(colNum){
+    var col = d3.selectAll(".matrix-column")
+      .filter(function(d, i){return colNum === i})
+      .classed("column-active", function(d){
+        return !d3.select(this).classed("column-active")
+      })
+    this.toggleColText(col.node().getElementsByClassName("matrix-column-text")[0])
+  },
+
+  toggleColText: function(elm){
+    var config = this.config
+    d3.select(elm).attr("fill", function(d){
+      var highlightColor = d.data.type && (config.color.highlight[d.data.type] || "lightgrey")
+      var defaultColor = d.data.type && (config.color.default[d.data.type] || "lightgrey")
+      var highlight = d3.select(this).attr("fill") === defaultColor ? true: false
+
+      if(highlight){
+        return highlightColor
+      }
+      return defaultColor
     })
   },
 
-  deactivateCol: function(rowNum){
-    d3.selectAll(".matrix-column").classed("column-active", false)
-  },
-
   toggleMultipleCol: function(keyPool){
+    var self = this
+    var config = this.config
+
     d3.selectAll(".matrix-column").each(function(c, j){
       var elm = d3.select(this)
+      var elmText = elm.node().getElementsByClassName("matrix-column-text")[0]
       if (keyPool.indexOf(c.data.key) !== -1){
         elm.classed("column-active", !elm.classed("column-active"))
+        self.toggleColText(elmText)
       }
     })
   },
@@ -430,14 +559,60 @@ var Term = Class.create({
       var filtered = otherTerm.filter(function(s){ return s.key === l })
       this.linkContent = this.linkContent.concat(filtered)
     }, this)
+  },
 
-  }
+  getKey: function(){
+    return this.key
+  },
+
+  getText: function(){
+    return this.text
+  },
+
 })
 
 
-var Symptom = Class.create(Term, {})
-var Disorder = Class.create(Term, {})
+var Symptom = Class.create(Term, {
+  // set type to symptom or not_symptom or free_symptom
+  setType: function(type){
+    if(type === "symptom" || "not_symptom" || "free_symptom"){
+      this.type = type
+    } else {
+      alert("incoming symptom type not right")
+    }
+  },
+  // set disabled property to symptom
+  setDisabled: function(disabled){
+    if(disabled){
+      this.disabled = disabled || true
+    } else {
+      this.disabled = disabled || false
+    }
+  },
 
+  getText: function(){
+    if(this.type === "not_symptom"){
+      return "NO " + this.text
+    }
+    return this.text
+  }
+})
+var Disorder = Class.create(Term, {
+  getKey: function(){
+    var a = this.text.split(/[ ,]+/)
+    if(a[0]){
+      return a[0]
+    }
+  },
+  // get text without the key at the front
+  getShortText: function(){
+    var a = this.text.split(/[ ,]+/)
+    if(a[1]){
+      return a.slice(1).join(" ")
+    }
+    return
+  }
+})
 
 
 /**
@@ -460,23 +635,31 @@ var Matrix = Class.create({
  */
 
 var dataHandler = Class.create({
-  initialize: function(inputData, config){
+  initialize: function(inputData, config, state){
     this.config = config
+    this.state = state
 
     this.inputData = inputData
     this.procData = this.preProcess(this.inputData)
+    this.completeData = JSON.parse(JSON.stringify(this.procData))
     this.popData = this.populateLinkContent(this.procData)
     this.matrix = this.toMatrix(this.popData)
   },
 
-  // utility for sorting data
-  setUpOrderingByFreq: function(data){
+  //utility for sorting symptoms
+  setUpOrderingBySelection: function(data, selectionFirst){
     var config = this.config
-    // sort symptom based on the number of connected disorders
-    data.symptom.sort(function(a, b){return b.link.length - a.link.length; })
-    data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
 
-    // do not sort data.disorder because its ranked already
+    data.symptom.sort(function(a,b){
+      if(a.hasOwnProperty("type") && b.hasOwnProperty("type")){
+        return b.link.length - a.link.length;
+      } else if (!a.hasOwnProperty("type") && !b.hasOwnProperty("type")) {
+        return b.link.length - a.link.length;
+      }
+      var decision = b.hasOwnProperty("type") - a.hasOwnProperty("type")
+      return selectionFirst? decision: !decision
+    })
+    data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
   },
 
   populateLinkContent: function(data){
@@ -489,6 +672,12 @@ var dataHandler = Class.create({
   // preprocess data into correct data structure
   preProcess: function(inputData){
     var config = this.config
+    var state = this.state
+
+    if(!state.outsideCache){console.log("cache not existent inside dataHandler Class")}
+    var clientSelectedSymptom = state.outsideCache.all
+
+
     var procData = {
       "disorder": [],
       "symptom": []
@@ -505,7 +694,14 @@ var dataHandler = Class.create({
         var idx = procData.symptom.map(function(x){return x.key;}).indexOf(s.key);
         if (idx === -1){
           // push new symptom object if not exist
-          procData.symptom.push(new Symptom(s.key, s.text, [d.key]))
+          var newS = new Symptom(s.key, s.text, [d.key])
+
+          // adding type and disabled property to new Symptom from cache [in patientsheetcode]
+          if(clientSelectedSymptom.hasOwnProperty(s.key)){
+            clientSelectedSymptom[s.key].type && newS.setType(clientSelectedSymptom[s.key].type)
+            clientSelectedSymptom[s.key].disabled && newS.setType(clientSelectedSymptom[s.key].disabled)
+          }
+          procData.symptom.push(newS)
         } else {
           // add to symptom.link if exists
           procData.symptom[idx].link.push(d.key)
@@ -523,7 +719,7 @@ var dataHandler = Class.create({
   toMatrix: function(data){
 
     // ordering of raw data
-    this.setUpOrderingByFreq(data)
+    this.setUpOrderingBySelection(data, true)
 
     // populate matrix
     var matrix = new Matrix()

@@ -1,0 +1,84 @@
+
+\documentclass[11pt]{article}
+
+% math packages
+\usepackage{mathtools}
+\usepackage{amsmath}
+\usepackage{amssymb}    % Math symbols such as \mathbb
+\usepackage{amsthm}
+\usepackage{pgfplots}   % plots
+\usepackage[linesnumbered, boxruled,titlenumbered, noend]{algorithm2e} % algorithmn
+% https://en.wikibooks.org/wiki/LaTeX/Algorithms
+% http://ctan.mirror.rafal.ca/macros/latex/contrib/algorithm2e/doc/algorithm2e.pdf
+\SetKwProg{Fn}{Function}{}{}
+
+% other packages
+\usepackage{graphicx}
+\graphicspath{ {../assets/} }
+\usepackage{enumitem}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage{hyperref}
+
+% proper inline math display, adjust height for symbols like \sum
+\everymath{\displaystyle}
+
+% define tags for math use..
+\theoremstyle{plain}% default
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+
+\theoremstyle{definition}
+\newtheorem{defn}{Definition}
+\newtheorem{exmp}{Example}[defn]
+\newtheorem{prop}{Proposition}[defn]
+\newtheorem{lemma}{Lemma}[defn]
+
+
+
+\theoremstyle{remark}
+\newtheorem*{rem}{Remark}
+\newtheorem*{note}{Note}
+\newtheorem{case}{Case}
+
+% Gives begin{solution} same formating as \begin{proof}
+\newenvironment{solution}
+  {\begin{proof}[Solution]}
+  {\end{proof}}
+
+
+%running fraction with slash - requires math mode.
+\newcommand*\rfrac[2]{{}^{#1}\!/_{#2}}
+%shortcut to mathbb
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\I}{\mathbb{I}}
+% color highlighting
+\newcommand{\hilight}[1]{\colorbox{yellow}{#1}}
+
+
+% begin document
+\begin{document}
+
+
+Let $U$ be the set of user selected symptoms. Let $D = \bigcup_{i\in \N}^{length(D)}{Di}$, where $D$ is the set of matched disorders from boqa. Find a set of symptoms $S_i$ associated with every $D_i$ and let $S = \bigcup_{i\in \N}^{length(D)}{S_i}$. Define,
+\[
+  A(s): \text{ a set of ancestor symptoms of symptom } s
+\]
+Then any $s$ is more specific than $A(s)$. Any $s$ symptom \textbf{is} any $a\in A(s)$; however $\forall a \in A(s)$ is not necessarily $s$.
+
+\begin{enumerate}
+  \item if $\exists x\in D$ such that $x$ is equal to $s\in S_i$, then $x$ is an exact match to s.
+  \item Let $A(s)$ for some $s\in S_i$ for some $i$. If $\forall u\in U$ such that $u\in A(s)$, then $u$ is an ancestor of the symptom $s$. $x$ is a fuzzy match
+  \item Let $A(u)$ for some $u\in U$, If $\exists s\in S_i$ for some $i$ such that $s\in A(u)$. Therefore $u$ implies $s$ and therefore $u$ is an exact match.
+  \item Otherwise there is no match
+\end{enumerate}
+
+\begin{enumerate}
+  \item
+\end{enumerate}
+
+
+
+
+% end document
+\end{document}

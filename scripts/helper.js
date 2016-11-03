@@ -32,18 +32,20 @@ var actionDispatcher = Class.create({
 
 
 
-  updateInfoDetailsList: function(linkContent){
+  updateInfoDetailsList: function(symptom){
     $("infoDetailsTable").removeAllChildElement()
     d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
-        .data(linkContent)
+        .data(symptom)
       .enter().append("tr")
         .attr("class", "infoDetailsTableItem")
       .append("th")
-        .text(function(d){return d.text})
+        .text(function(d){
+          return d.getText() + " => " + d.category
+        })
   },
 
   liftToTop: function(elem){
-    plane = elem.parentNode
+    var plane = elem.parentNode
     plane.appendChild(elem)
   },
 
@@ -106,6 +108,7 @@ var actionDispatcher = Class.create({
   toggleMultipleCol: function(keyPool){
     var self = this
     var config = this.config
+    console.log(keyPool);
 
     d3.selectAll(".matrix-column").each(function(c, j){
       var elm = d3.select(this)
@@ -150,28 +153,44 @@ var actionDispatcher = Class.create({
 
 var Term = Class.create({
 
-  initialize: function(key, text, link){
+  initialize: function(key, text){
     this.key = key
-    this.text = text
-    this.link = link // type [String]
-    this.linkContent = new Array() // [term]
+    this.text = this.capitalizeEveryWord(text)
+
+
+
+    // this.link = link // type [String]
+    // this.linkContent = new Array() // [term]
+  },
+
+  capitalizeEveryWord: function(text){
+    newText = []
+    var a = text.toLowerCase().split(/[ ,]+/)
+    a.each(function(b){
+      newText.push(b.charAt(0).toUpperCase() + b.slice(1))
+    })
+    return newText.join(" ")
   },
 
   print: function(){
     console.log(this.key + ' : ' + this.text)
   },
 
+  toString: function(){
+    return this.key + ' : ' + this.text
+  },
+
   hasKey: function(k){
     return this.key === k
   },
 
-  populateWith: function(otherTerm){
-    // @param otherTerm: array of term object to choose from
-    this.link.each(function(l){
-      var filtered = otherTerm.filter(function(s){ return s.key === l })
-      this.linkContent = this.linkContent.concat(filtered)
-    }, this)
-  },
+  // populateWith: function(otherTerm){
+  //   // @param otherTerm: array of term object to choose from
+  //   this.link.each(function(l){
+  //     var filtered = otherTerm.filter(function(s){ return s.key === l })
+  //     this.linkContent = this.linkContent.concat(filtered)
+  //   }, this)
+  // },
 
   getKey: function(){
     return this.key
@@ -181,10 +200,21 @@ var Term = Class.create({
     return this.text
   },
 
+  equalTo: function(t){
+    return this.key === t.key && this.text === t.text && typeof this === typeof t
+  },
+
 })
 
 
 var Symptom = Class.create(Term, {
+
+  initialize: function($super, key, text, type, category){
+    $super(key, text)
+    this.category = category
+    this.type = type
+  },
+
   // set type to symptom or not_symptom or free_symptom
   setType: function(type){
     if(type === "symptom" || "not_symptom" || "free_symptom"){
@@ -207,9 +237,55 @@ var Symptom = Class.create(Term, {
       return "NO " + this.text
     }
     return this.text
+  },
+
+  toString: function($super){
+    return $super() + " ("+ this.category +")"
+  },
+
+  equalTo: function($super, s){
+    return $super(s) && this.type === s.type && this.category === s.category
+  },
+
+  greaterOrEqualTo: function(s){
+    var rule = ['missmatch' ,'unknown', 'ancestor', 'match']
+
+    if(!this.equalTo(s)){
+      var self = rule.indexOf(this.category)
+      var other = rule.indexOf(s.category)
+
+      if(self === -1 || other === -1){
+        console.log("symptoms in comparison does not have property category");
+        return
+      }
+
+      if(self === 1 && other !== 1){
+        return false
+      }
+      if(self === 2 && other === 3){
+        return false
+      }
+
+      if((self === 0 && other > 1) || (self > 1 && other === 0)){
+        console.log("symptoms in comparison is both a missmatch and ancestor/match");
+        return
+      }
+
+      return  true
+    } else {
+      return true
+    }
   }
 })
+
+
 var Disorder = Class.create(Term, {
+
+  initialize: function($super, key, text, symptom){
+    $super(key, text)
+    this.symptom = symptom
+  },
+
   getKey: function(){
     var a = this.text.split(/[ ,]+/)
     if(a[0]){
@@ -219,6 +295,7 @@ var Disorder = Class.create(Term, {
   // get text without the key at the front
   getShortText: function(){
     var a = this.text.split(/[ ,]+/)
+
     if(a[1]){
       return a.slice(1).join(" ")
     }
@@ -254,24 +331,28 @@ var dataHandler = Class.create({
     this.inputData = inputData
     this.procData = this.preProcess(this.inputData)
     this.completeData = JSON.parse(JSON.stringify(this.procData))
-    this.popData = this.populateLinkContent(this.procData)
-    this.matrix = this.toMatrix(this.popData)
+    // this.popData = this.populateLinkContent(this.procData)
+    this.matrix = this.toMatrix(this.procData)
   },
 
   //utility for sorting symptoms
   setUpOrderingBySelection: function(data, selectionFirst){
     var config = this.config
 
-    data.symptom.sort(function(a,b){
-      if(a.hasOwnProperty("type") && b.hasOwnProperty("type")){
-        return b.link.length - a.link.length;
-      } else if (!a.hasOwnProperty("type") && !b.hasOwnProperty("type")) {
-        return b.link.length - a.link.length;
-      }
-      var decision = b.hasOwnProperty("type") - a.hasOwnProperty("type")
-      return selectionFirst? decision: !decision
+    data.each(function(d){
+      d.symptom.sort(function(a,b){
+        var a = a.text.toLowerCase();
+        var b = b.text.toLowerCase();
+
+        if (a < b){
+           return -1;
+        } else if (a > b){
+          return  1;
+        } else{
+          return 0;
+        }
+      })
     })
-    data.symptom = data.symptom.slice(0, config.numSymptomdisplayed)
   },
 
   populateLinkContent: function(data){
@@ -282,7 +363,6 @@ var dataHandler = Class.create({
   },
 
 
-
   //preprocess data into correct data structure
   preProcess: function(inputData){
     var config = this.config
@@ -291,42 +371,54 @@ var dataHandler = Class.create({
     if(!state.outsideCache){console.log("cache not existent inside dataHandler Class")}
     var clientSelectedSymptom = state.outsideCache.all
 
+    outputData = []
 
-    var procData = {
-      "disorder": [],
-      "symptom": []
-    }
-
-    // data = [{disorder}, {disorder}, ...]
-    //          disorder = {key, text, {symptom}}
-    //                                  symptom = {key, text}
+    // logically aggregate symptom
     inputData.each(function(d){
-
-      // populate procData.symptom
-      d.symptom.each(function(s){
-        // construct non duplicate array
-        var idx = procData.symptom.map(function(x){return x.key;}).indexOf(s.key);
-        if (idx === -1){
-          // push new symptom object if not exist
-          var newS = new Symptom(s.key, s.text, [d.key])
-
-          // adding type and disabled property to new Symptom from cache [in patientsheetcode]
-          if(clientSelectedSymptom.hasOwnProperty(s.key)){
-            clientSelectedSymptom[s.key].type && newS.setType(clientSelectedSymptom[s.key].type)
-            clientSelectedSymptom[s.key].disabled && newS.setType(clientSelectedSymptom[s.key].disabled)
-          }
-          procData.symptom.push(newS)
-        } else {
-          // add to symptom.link if exists
-          procData.symptom[idx].link.push(d.key)
+      if(d.symptom.length === 0){return}
+      // construct symptom objects
+      var original = d.symptom.map(function(s){
+        sym = new Symptom(s.key, s.text, s.type, s.category)
+        if(clientSelectedSymptom.hasOwnProperty(sym.key)){
+          clientSelectedSymptom[s.key].disabled && sym.setDisabled(clientSelectedSymptom[s.key].disabled)
         }
+
+        return sym
       })
+      // evaluate symptom category and eliminate redundant ones
+      console.log("DISORDER: " + d.key);
 
-      // populate procData.disorder
-      procData.disorder.push(new Disorder(d.key, d.text, d.symptom.map(function(x){return x.key;})))
+      var nonDuplicates = []
+      var first = original.pop()
+      console.log("PUSHED: " + first.toString());
+      nonDuplicates.push(first)
+
+      while(original.length !== 0){
+        var next = original.pop()
+        var pushAgain = true
+
+        for(i=0; i<nonDuplicates.length; i++){
+          curr = nonDuplicates[i]
+          if(next.key === curr.key){
+            pushAgain = false
+            if(!curr.greaterOrEqualTo(next)){
+              console.log('REPLACE: ' + curr.toString() + " => " + next.toString());
+              nonDuplicates[i] = next
+              break
+            }
+          }
+        }
+
+        if(pushAgain){
+          console.log("PUSHED: " + next.toString());
+          nonDuplicates.push(next)
+        }
+      }
+      d.symptom = nonDuplicates
+      outputData.push(new Disorder(d.key, d.text, d.symptom))
+
     })
-
-    return procData
+    return outputData
   },
 
   // pre Process data to matrix
@@ -337,7 +429,7 @@ var dataHandler = Class.create({
 
     // populate matrix
     var matrix = new Matrix()
-    data.disorder.each(function(d, i){
+    data.each(function(d, i){
 
       // construct row
       var row = matrix.addRow([])
@@ -354,13 +446,12 @@ var dataHandler = Class.create({
         value: i
       })
 
-
       // construct cell for curr row
-      data.symptom.each(function(s, j){
+      d.symptom.each(function(s, j){
         row[j] = {
           x: i,
           y: j,
-          z: (d.link.indexOf(s.key) != -1)? true: false
+          z: (s.category !== 'unknown')? true: false
         }
         Object.defineProperty(row[j], 'data', {
           enumerable: false,

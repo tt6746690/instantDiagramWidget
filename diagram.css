@@ -52,9 +52,6 @@ body {
   text-anchor: end;
 }
 
-.matrix-cell {
-  fill: #b4f0c9;
-}
 
 .cell-mouse-over {
   fill: #5caf7a;

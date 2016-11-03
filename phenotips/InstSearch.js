@@ -21,6 +21,7 @@ document.observe('xwiki:dom:loading', function() {
           this.state.matrix = this.state.dataHandler.matrix
           this.state.scale = this.setUpScale()
           this.state.selection = this._specifySelect()
+          console.log(JSON.stringify(cache))
 
           this.state.actionDispatcher = new actionDispatcher(this.config)
 

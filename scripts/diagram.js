@@ -11,8 +11,7 @@ var Diagram = Class.create({
     this.state = {}
     this.state.outsideCache = cache
     this.state.dataHandler = new dataHandler(data, this.config, this.state)
-    this.state.completeData = this.state.dataHandler.completeData
-    this.state.data = this.state.dataHandler.popData
+    this.state.data = this.state.dataHandler.procData
     this.state.matrix = this.state.dataHandler.matrix
     this.state.scale = this.setUpScale()
     this.state.selection = this._specifySelect()
@@ -25,7 +24,7 @@ var Diagram = Class.create({
 
   // internal configs
   internalConfig: {
-    width: 800,
+    width: 600,
     height: 500,
     margin: {
       left: 300,
@@ -49,11 +48,14 @@ var Diagram = Class.create({
       width: 140,
       height: 100
     },
-    numSymptomdisplayed: 100,
+    cellStrokeColor: "#81ddab",
+    cellFillColor: "#c3ffe4",
+    numSymptomdisplayed: 50,
     numDisorderdisplayed: 20,
     innerPadding: .1,
     cellWidth: 25,
-    scrollWidth: 0 // cellWidth * numbeSymptomdisplayed
+    scrollWidth: 0, // cellWidth * numbeSymptomdisplayed
+    totalCellWidth: 0 // cellwidth * symptomNumber
   },
 
 
@@ -90,11 +92,19 @@ var Diagram = Class.create({
   // set up x and y scale range
   setUpScale: function(){
     var config = this.config
-    config.scrollWidth = Math.max(config.width, config.numSymptomdisplayed * config.cellWidth)
+    var state = this.state
+
+    var symptomLength = state.data[0].symptom.length
+    if(symptomLength > config.numSymptomdisplayed){
+      symptomLength = config.numSymptomdisplayed
+    }
+
+    config.totalCellWidth = symptomLength * config.cellWidth
+    config.scrollWidth = Math.max(config.width, config.totalCellWidth)
 
 
     var Scale = {
-      x: d3.scaleBand().rangeRound([0, config.scrollWidth]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),
+      x: d3.scaleBand().rangeRound([0, config.totalCellWidth]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),
       y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding])
     }
     return Scale
@@ -136,8 +146,8 @@ var Diagram = Class.create({
     var config = this.config
     var state = this.state
     // set scale domain to symptom and disorder names
-    state.scale.x.domain(state.data.symptom.map(function(s){return s.text}))
-    state.scale.y.domain(state.data.disorder.map(function(d){return d.text}))
+    state.scale.x.domain(state.data[0].symptom.map(function(s){return s.text}))
+    state.scale.y.domain(state.data.map(function(d){return d.text}))
 
     this.state.leftGroup = d3.select('#' + config.domElement.id)
       .append("div")
@@ -194,16 +204,16 @@ var Diagram = Class.create({
         .attr("class", "matrix-row-text")
         .attr("x", config.margin.left)
         .attr("y", state.scale.y.bandwidth() / 2)
-        .text(function(d, i) { return d.data.getShortText(); })
+        .text(function(d, i) {return d.data.getShortText(); })
         .on("mouseover", function(d, i, j){
           var Dispatcher = this.state.actionDispatcher
           Dispatcher.toggleRow(d.x)
 
-          var keyPool = d.data.link
-          Dispatcher.toggleMultipleCol(keyPool)
+          // var keyPool = d.data.link
+          // Dispatcher.toggleMultipleCol(keyPool) //TODO:
           Dispatcher.updateInfoHeading(d.data.getKey())
           Dispatcher.updateInfoSubHeading(d.data.getShortText())
-          Dispatcher.updateInfoDetailsList(d.data.linkContent)
+          Dispatcher.updateInfoDetailsList(d.data.symptom)
 
         }.bind(this))
         .on("mouseout", function(d){
@@ -211,7 +221,7 @@ var Diagram = Class.create({
           Dispatcher.toggleRow(d.x)
 
           var keyPool = d.data.link
-          Dispatcher.toggleMultipleCol(keyPool)
+          // Dispatcher.toggleMultipleCol(keyPool) //TODO
 
         }.bind(this))
 
@@ -275,9 +285,8 @@ var Diagram = Class.create({
           var Dispatcher = this.state.actionDispatcher
           Dispatcher.toggleColumn(d.y)
 
-          var keyPool = d.data.link
-          Dispatcher.toggleMultipleRow(keyPool)
-
+          // d.data.key is the symptom
+          // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
           Dispatcher.updateInfoHeading(d.data.getKey())
           Dispatcher.updateInfoSubHeading(d.data.getText())
         }.bind(this))
@@ -286,7 +295,7 @@ var Diagram = Class.create({
           Dispatcher.toggleColumn(d.y)
 
           var keyPool = d.data.link
-          Dispatcher.toggleMultipleRow(keyPool)
+          // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
         }.bind(this))
 
     /**
@@ -337,12 +346,43 @@ var Diagram = Class.create({
           return d.data.text
         })
 
-    state.cell = state.cellGroup.append('rect')
+
+    // state.cell = state.cellGroup.append('rect')
+    //     .attr("class", "matrix-cell")
+    //     .attr("x", 0)
+    //     .attr("width", state.scale.x.bandwidth())
+    //     .attr("height", state.scale.y.bandwidth())
+    //     .style("opacity", function(d) { return d.z === true ? 1 : 0})
+    //     .attr("fill", function(d){
+    //       return "#b4f0c9"
+    //     })
+
+
+      state.cell = state.cellGroup.append('path')
         .attr("class", "matrix-cell")
-        .attr("x", 0)
-        .attr("width", state.scale.x.bandwidth())
-        .attr("height", state.scale.y.bandwidth())
+        .attr("transform", "translate(" + state.scale.x.bandwidth()/2 + ", "+ state.scale.y.bandwidth()/2 +")")
         .style("opacity", function(d) { return d.z === true ? 1 : 0})
+        .style("fill", function(d) {
+          if(d.data.category === "ancestor"){
+            return config.cellFillColor
+          }
+          return config.cellStrokeColor
+        })
+        .style("stroke", config.cellStrokeColor)
+        .style("stroke-width", state.scale.x.bandwidth()/4)
+        .attr("d", d3.symbol()
+          .size([1/3 * config.cellWidth * config.cellWidth])
+          .type(function(d){
+            if(d.data.category === "match"){
+              return d3.symbolCircle
+            } else if(d.data.category === "missmatch"){
+              return d3.symbolCross
+            } else if(d.data.category === "ancestor"){
+              return d3.symbolCircle
+            } else
+            return d3.symbolCircle
+          })
+        )
         .on("mouseover", function(d, i, j){
           // d <==> current cell object {x,y,z}
           // i <==> column index

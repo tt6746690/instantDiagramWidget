@@ -201,6 +201,23 @@ var Symptom = Class.create(Term, {
     $super(key, text)
     this.category = category
     this.type = type
+
+    // for setting column ordering
+    this.calculatePrevalence()
+  },
+
+  calculatePrevalence: function(){
+    var mapping = {
+      'match': 10,
+      'ancestor': 1,
+      'unknown': 0,
+      'missmatch': -1
+    }
+    if (this.key in Symptom.prevalence){
+      Symptom.prevalence[this.key] += mapping[this.category]
+    } else {
+      Symptom.prevalence[this.key] = 0
+    }
   },
 
   // set type to symptom or not_symptom or free_symptom
@@ -226,7 +243,7 @@ var Symptom = Class.create(Term, {
       symText = "NO " + symText
     }
 
-    var cutoff = 28
+    var cutoff = 30
     if(symText.length > cutoff){
       symText = symText.slice(0, cutoff) + " ..."
     }
@@ -284,11 +301,13 @@ var Symptom = Class.create(Term, {
 })
 
 
+
 var Disorder = Class.create(Term, {
 
   initialize: function($super, key, text, symptom){
     $super(key, text)
     this.symptom = symptom
+
   },
 
   getKey: function(){
@@ -305,7 +324,7 @@ var Disorder = Class.create(Term, {
     if(a[1]){
       var disText = a.slice(1).join(" ")
 
-      var cutoff = 28
+      var cutoff = 30
       if(disText.length > cutoff){
         disText = disText.slice(0, cutoff) + " ..."
       }
@@ -354,15 +373,24 @@ var dataHandler = Class.create({
     data.each(function(d){
       // alphabetical order for the moment
       d.symptom.sort(function(a,b){
-        var a = a.text.toLowerCase();
-        var b = b.text.toLowerCase();
+        var ap = Symptom.prevalence[a.key]
+        var bp = Symptom.prevalence[b.key]
 
-        if (a < b){
+        if (ap > bp){
            return -1;
-        } else if (a > b){
+        } else if (ap < bp){
           return  1;
         } else{
-          return 0;
+          // prevalence score equal now sort by alphabet
+          var aAlpha = a.text.toLowerCase()
+          var bAlpha = b.text.toLowerCase()
+          if(aAlpha > bAlpha){
+            return -1
+          } else if (aAlpha < bAlpha){
+            return 1
+          } else {
+            return 0
+          }
         }
       })
     })
@@ -385,6 +413,9 @@ var dataHandler = Class.create({
     var clientSelectedSymptom = state.outsideCache.all
 
     outputData = []
+
+    // initialize static variable
+    Symptom.prevalence = {}
 
     // logically aggregate symptom
     inputData.each(function(d){
@@ -433,6 +464,7 @@ var dataHandler = Class.create({
       outputData.push(new Disorder(d.key, d.text, d.symptom))
 
     })
+    console.log(Symptom.prevalence);
     return outputData
   },
 

@@ -119,9 +119,34 @@ var actionDispatcher = Class.create({
     })
   },
 
-  toggleTooltip: function(selection){
-    var tooltipSelection = d3.select(selection)
-    tooltipSelection.classed("tooltips-active", !tooltipSelection.classed("tooltips-active"))
+  showToolTip: function(currElem, d){
+
+    var matrix = currElem.getScreenCTM()
+          .translate(+ currElem.getAttribute("cx"), + currElem.getAttribute("cy"))
+
+    this.state.tooltip
+      .html(function(){
+        var title = "<div id='tooltipTitle'>" + d.data.getText() + "</div>"
+        return title
+      })
+      .transition()
+      .delay(10)
+      .style("left", 0)
+      .style("opacity", 1)
+      .style("left", (matrix.e) + "px")
+      .style("top",(matrix.f) + "px")
+
+  },
+
+  mouseOverTracking: function(){
+    this.state.tooltip
+     .style("left", Math.max(0, d3.event.pageX - this.config.tooltip.width/2) + "px")
+     .style("top", (d3.event.pageY - this.state.scale.x.bandwidth() * 2.5) + "px");
+  },
+
+  removeToolTip: function(){
+    this.state.tooltip
+      .style("opacity", 0)
   },
 
   // re-sort .matrix-row to restore rect element order
@@ -317,20 +342,23 @@ var Disorder = Class.create(Term, {
     }
   },
 
-  // get text without the key at the front
   getText: function(){
     var a = this.text.split(/[ ,]+/)
-
     if(a[1]){
-      var disText = a.slice(1).join(" ")
-
-      var cutoff = 30
-      if(disText.length > cutoff){
-        disText = disText.slice(0, cutoff) + " ..."
-      }
-      return disText
+      return a.slice(1).join(" ")
     }
     return
+  },
+
+  // get text without the key at the front
+  getShortText: function(){
+    var disText = this.getText()
+
+    var cutoff = 30
+    if(disText.length > cutoff){
+      disText = disText.slice(0, cutoff) + " ..."
+    }
+    return disText
   }
 })
 

@@ -51,7 +51,7 @@
   font-size: 15px;
 }
 .matrix-row-text {
-  font-size: 13px;
+  font-size: 14px;
   text-anchor: end;
 }
 
@@ -107,4 +107,10 @@
 #infoDetailsTable {
   text-align: left;
   color: #0a1b15;
+}
+
+
+#tooltipTitle {
+  font-size: 15px;
+  color: #39aac7
 }

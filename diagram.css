@@ -1,32 +1,35 @@
 
-body {
-     margin: 0;
-     padding: 0;
-}
-
 
 #instantSearchDiagram {
   margin: 0 auto;
+  padding: 0;
+  display: table;
+
 }
 
 
 #leftContainer {
   /*border:1px solid #a3c6b6;*/
-  position: absolute;
-  float: left;
-  display: inline-block;
+  display: table-cell;
+  vertical-align: top;
+
 }
 
 #middleContainer {
   /*border:1px solid #80b89e;*/
-  position: absolute;
+  display: table-cell;
+  vertical-align: top;
+
   overflow-x: auto;
   overflow-y: hidden;
+
 }
 
 #rightContainer {
   /*border:1px solid #7db59b;*/
-  position:absolute;
+  display: table-cell;
+  vertical-align: top;
+
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -38,47 +41,41 @@ body {
 
 .matrix-row-background,
 .matrix-column-background {
-  fill: #f4f4f4;
+  fill: #e4e4e4;
   opacity: 0.5;
 }
 
 
 
 .matrix-column-text {
-  font-size: 15px;
+  font-size: 16px;
 }
 .matrix-row-text {
-  font-size: 10px;
+  font-size: 14px;
   text-anchor: end;
 }
 
 
-.cell-mouse-over {
-  fill: #5caf7a;
-}
-
 
 
 .row-background-active {
-  fill: #ebebeb;
+  fill: #cdcdcd;
   opacity: 0.5;
 }
 
 
 .column-active > .matrix-column-background {
-  fill: #ebebeb;
+  fill: #cdcdcd;
   opacity: 0.5;
 }
 
 
 .row-active > a > text {
-  fill: #5caf7a;
-  font-size: 14px;
-  stroke-width: 2
+  fill: #39aac7;
 }
 
 .column-active > text {
-  font-size: 18px
+  /*font-size: 18px*/
 }
 
 
@@ -98,16 +95,16 @@ body {
 
 #DiagramInfoHeading {
   font-size: 50px;
-  color: #39674b;
+  color: #45bb94;
   margin-bottom: 15px;
 }
 
 #DiagramInfoSubHeading {
   font-size: 25px;
-  color: #518c67;
+  color: #308267;
 }
 
 #infoDetailsTable {
   text-align: left;
-  color: #5caf7a;
+  color: #0a1b15;
 }

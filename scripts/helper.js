@@ -30,8 +30,6 @@ var actionDispatcher = Class.create({
     d3.select("#DiagramInfoSubHeading").text(text)
   },
 
-
-
   updateInfoDetailsList: function(symptom){
     $("infoDetailsTable").removeAllChildElement()
     d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
@@ -62,6 +60,7 @@ var actionDispatcher = Class.create({
       .classed("row-active", function(d, i) {
       return !d3.select(this).classed("row-active")
     })
+
     // highlight background
     d3.selectAll(".matrix-row-background")
       .filter(function(d){ return rowNum === d.x})
@@ -156,9 +155,6 @@ var Term = Class.create({
   initialize: function(key, text){
     this.key = key
     this.text = this.capitalizeEveryWord(text)
-
-
-
     // this.link = link // type [String]
     // this.linkContent = new Array() // [term]
   },
@@ -184,14 +180,6 @@ var Term = Class.create({
     return this.key === k
   },
 
-  // populateWith: function(otherTerm){
-  //   // @param otherTerm: array of term object to choose from
-  //   this.link.each(function(l){
-  //     var filtered = otherTerm.filter(function(s){ return s.key === l })
-  //     this.linkContent = this.linkContent.concat(filtered)
-  //   }, this)
-  // },
-
   getKey: function(){
     return this.key
   },
@@ -202,7 +190,7 @@ var Term = Class.create({
 
   equalTo: function(t){
     return this.key === t.key && this.text === t.text && typeof this === typeof t
-  },
+  }
 
 })
 
@@ -233,10 +221,16 @@ var Symptom = Class.create(Term, {
   },
 
   getText: function(){
+    var symText = this.text
     if(this.type === "not_symptom"){
-      return "NO " + this.text
+      symText = "NO " + symText
     }
-    return this.text
+
+    var cutoff = 28
+    if(symText.length > cutoff){
+      symText = symText.slice(0, cutoff) + " ..."
+    }
+    return symText
   },
 
   toString: function($super){
@@ -247,7 +241,7 @@ var Symptom = Class.create(Term, {
     return $super(s) && this.type === s.type && this.category === s.category
   },
 
-  greaterOrEqualTo: function(s){
+  greaterThan: function(s){
     var rule = ['missmatch' ,'unknown', 'ancestor', 'match']
 
     if(!this.equalTo(s)){
@@ -255,24 +249,35 @@ var Symptom = Class.create(Term, {
       var other = rule.indexOf(s.category)
 
       if(self === -1 || other === -1){
-        console.log("symptoms in comparison does not have property category");
+        console.log("symptoms in comparison does not have appropriate category");
         return
       }
 
-      if(self === 1 && other !== 1){
-        return false
+      // self is greaterThan other:
+      // if self is not unknown while other is unknown
+      if(self !== 1 && other === 1){
+        return true
       }
-      if(self === 2 && other === 3){
-        return false
+
+      // if self is match and other is ancestor
+      if(self === 3 && other === 2){
+        return true
+      }
+
+      // if self is a missmatch and other is an ancestor
+      if(self === 0 && other === 1){
+        return true
       }
 
       if((self === 0 && other > 1) || (self > 1 && other === 0)){
         console.log("symptoms in comparison is both a missmatch and ancestor/match");
+        console.log("user may have selected a parent symptom as not present and a descendent symptom as present");
         return
       }
 
-      return  true
+      return  false
     } else {
+      // two symptoms are equal in their attributes
       return true
     }
   }
@@ -292,12 +297,19 @@ var Disorder = Class.create(Term, {
       return a[0]
     }
   },
+
   // get text without the key at the front
-  getShortText: function(){
+  getText: function(){
     var a = this.text.split(/[ ,]+/)
 
     if(a[1]){
-      return a.slice(1).join(" ")
+      var disText = a.slice(1).join(" ")
+
+      var cutoff = 28
+      if(disText.length > cutoff){
+        disText = disText.slice(0, cutoff) + " ..."
+      }
+      return disText
     }
     return
   }
@@ -340,6 +352,7 @@ var dataHandler = Class.create({
     var config = this.config
 
     data.each(function(d){
+      // alphabetical order for the moment
       d.symptom.sort(function(a,b){
         var a = a.text.toLowerCase();
         var b = b.text.toLowerCase();
@@ -398,13 +411,15 @@ var dataHandler = Class.create({
         var pushAgain = true
 
         for(i=0; i<nonDuplicates.length; i++){
-          curr = nonDuplicates[i]
-          if(next.key === curr.key){
+          within = nonDuplicates[i]
+          if(next.key === within.key){
             pushAgain = false
-            if(!curr.greaterOrEqualTo(next)){
-              console.log('REPLACE: ' + curr.toString() + " => " + next.toString());
+            if(next.greaterThan(within)){
+              console.log('REPLACE: ' + within.toString() + " => " + next.toString());
               nonDuplicates[i] = next
               break
+            } else {
+              console.log('DO NOTHING: ' + within.toString());
             }
           }
         }

@@ -124,9 +124,15 @@ var actionDispatcher = Class.create({
     var matrix = currElem.getScreenCTM()
           .translate(+ currElem.getAttribute("cx"), + currElem.getAttribute("cy"))
 
+    var isDisorder = d.data.hasOwnProperty("symptom")
+
+    var textAlignDirection = isDisorder ? "text-align-right" : "text-align-left"
+    var topShiftAddition = isDisorder ? this.state.scale.y.bandwidth() : 0
+    var tooltipWidth = isDisorder ? this.config.tooltip.width + "px"  : "auto"
+
     this.state.tooltip
       .html(function(){
-        var title = "<div id='tooltipTitle'>" + d.data.getText() + "</div>"
+        var title = "<div id='tooltipTitle' class=" + textAlignDirection + ">" + d.data.getText() + "</div>"
         return title
       })
       .transition()
@@ -134,18 +140,23 @@ var actionDispatcher = Class.create({
       .style("left", 0)
       .style("opacity", 1)
       .style("left", (matrix.e) + "px")
-      .style("top",(matrix.f) + "px")
+      .style("top", (matrix.f + topShiftAddition) + "px")
+      .style("width",function(d){
+        return tooltipWidth
+      })
 
   },
 
   mouseOverTracking: function(){
     this.state.tooltip
      .style("left", Math.max(0, d3.event.pageX - this.config.tooltip.width/2) + "px")
-     .style("top", (d3.event.pageY - this.state.scale.x.bandwidth() * 2.5) + "px");
+     .style("top", (d3.event.pageY - this.state.scale.x.bandwidth() * 3) + "px");
   },
 
   removeToolTip: function(){
     this.state.tooltip
+      .transition()
+      .delay(10)
       .style("opacity", 0)
   },
 

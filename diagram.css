@@ -51,7 +51,7 @@
   font-size: 15px;
 }
 .matrix-row-text {
-  font-size: 14px;
+  font-size: 15px;
   text-anchor: end;
 }
 
@@ -70,7 +70,7 @@
 }
 
 
-.row-active > a > text {
+.row-active > text {
   fill: #39aac7;
 }
 
@@ -111,6 +111,16 @@
 
 
 #tooltipTitle {
-  font-size: 15px;
+  font-size: 16px;
   color: #39aac7
+}
+
+
+.text-align-left{
+  text-align: left ;
+}
+
+
+.text-align-right{
+  text-align: right;
 }

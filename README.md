@@ -2,9 +2,7 @@
 
 TODOs
 
-2. change disorder to onclick and highlight
 3. right contianer list all symptom of disorder and show match missmatch
-5. add tooltip to disorder names and symptom names
 
 
 __resources__

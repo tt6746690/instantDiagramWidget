@@ -9,10 +9,9 @@
 
 
 #leftContainer {
-  /*border:1px solid #a3c6b6;*/
+  /*border:1px dotted #768588;*/
   display: table-cell;
   vertical-align: top;
-
 }
 
 #middleContainer {
@@ -34,11 +33,6 @@
   overflow-y: auto;
 }
 
-
-.background {
-  fill: #eee;
-}
-
 .matrix-row-background,
 .matrix-column-background {
   fill: #e4e4e4;
@@ -48,10 +42,10 @@
 
 
 .matrix-column-text {
-  font-size: 15px;
+  font-size: 17px;
 }
 .matrix-row-text {
-  font-size: 15px;
+  font-size: 17px;
   text-anchor: end;
 }
 
@@ -88,31 +82,28 @@
   fill-opacity: 0.8;
 }
 
-.tooltips-active {
-  opacity: 1
-}
-
 
 #DiagramInfoHeading {
-  font-size: 50px;
-  color: #45bb94;
+  font-size: 40px;
+  color: #000000;
   margin-bottom: 15px;
 }
 
 #DiagramInfoSubHeading {
-  font-size: 25px;
-  color: #308267;
+  font-size: 23px;
+  color: #4b4b4b;
 }
 
 #infoDetailsTable {
   text-align: left;
-  color: #0a1b15;
+  color: #8c8c8c;
+  font-size: 14px
 }
 
 
 #tooltipTitle {
-  font-size: 16px;
-  color: #39aac7
+  font-size: 18px;
+  /*color: #39aac7*/
 }
 
 

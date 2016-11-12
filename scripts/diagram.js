@@ -12,9 +12,10 @@ var Diagram = Class.create({
     this.state = {}
     this.state.outsideCache = cache
     this.state.dataHandler = new dataHandler(data, this.config, this.state)
+
     this.state.data = this.state.dataHandler.procData
     this.state.matrix = this.state.dataHandler.matrix
-    this.state.scale = this.setUpScale()
+    this.state.scale = this._setUpScale()
     this.state.selection = this._specifySelect()
 
     this.state.actionDispatcher = new actionDispatcher(this.config, this.state)
@@ -29,10 +30,10 @@ var Diagram = Class.create({
     height: 450,
     totalHeight: 0, // height + top = 700
     leftContainer: {
-      width: 250
+      width: 270
     },
     middleContainer:{
-      width: 500,
+      width: 450,
       scaleWidth: 0,    // oneCellwidth * symptomNumber; setting up x scale
       adaptiveWidth: 0, // oneCellWidth * numbeSymptomdisplayed
       adaptiveWidthPadded: 0    // adaptiveWidth + top; for setting up div and svg width
@@ -42,7 +43,7 @@ var Diagram = Class.create({
     },
     color: {
       default: {
-        symptom: "#404040",
+        symptom: "#6caaba",
         not_symptom: "#ff7575",
         free_symptom: "#878787"
       },
@@ -53,11 +54,14 @@ var Diagram = Class.create({
       }
     },
     tooltip: {
-      width: 250,
-      height: 200
+      width: 270,
+      height: 200,
+      backgroundColor: "#e3e3e3"
     },
     cellStrokeColor: "#80cfe4",
     cellFillColor: "#d2f1f9",
+    cellMissMatchColor: "#ff3434",
+    termHoverHighlightColor: "#6caaba",
     scaleInnerPadding: .1,
     numDisorderdisplayed: 20,
     oneCellWidth: 25,
@@ -95,7 +99,7 @@ var Diagram = Class.create({
   },
 
   // set up x and y scale range
-  setUpScale: function(){
+  _setUpScale: function(){
     var config = this.config
     var state = this.state
 
@@ -175,12 +179,11 @@ var Diagram = Class.create({
       .style("overflow-y", "auto")
       .style("opacity", 0)
       .style("position", "fixed")
-      .style("background", "#dadada")   // same as row highlight color
+      .style("background", config.tooltip.backgroundColor)   // same as row highlight color
       .style("border", "#cdc9c9 dotted")
       .style("border-width", "1px")
-      .style("color", "black")
       .style("font-weight", "bold")
-      .style("text-align", "center")
+      // .style("text-align", "center")
 
     state.leftGroup = rootDiv
       .append("div")
@@ -193,6 +196,7 @@ var Diagram = Class.create({
         .attr("id", "leftGroup")
         .attr("class", "svg-group")
 
+
       state.middleGroup = rootDiv
         .append("div")
           .attr("id","middleContainer")
@@ -200,9 +204,9 @@ var Diagram = Class.create({
           .style("height", config.totalHeight + "px")
           .style("margin-left", config.leftContainer.width + "px")
         .append("svg")
-          .attr("width", config.middleContainer.scaleWidthPadded + "px")
-          .attr("height",  config.totalHeight + "px")
           .attr("id", "middleSVG")
+          .style("width", config.middleContainer.scaleWidthPadded + "px")
+          .style("height",  config.totalHeight + "px")
         .append("g")
           .attr("transform", "translate(0," + config.top + ")")
           .attr("id", "middleGroup")
@@ -214,6 +218,12 @@ var Diagram = Class.create({
         .style("width", config.rightContainer.width + "px")
         .style("height",  config.totalHeight + "px")
         .style("margin-left", (config.leftContainer.width + config.middleContainer.adaptiveWidthPadded + 10) + "px")
+        .style("overflow-y", "auto")
+      .append("div")
+        .style("height", config.height + "px")
+
+
+
 
 
   },
@@ -228,20 +238,33 @@ var Diagram = Class.create({
         .attr("class", "matrix-row")
         .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
 
+
     state.rowHeadings.append("rect")
       .attr("height", state.scale.y.bandwidth())
       .attr("width", config.leftContainer.width)
       .style("opacity", 0)
+      .style("fill", "#d1d1d1")
+
+
 
 
     state.rowHeadings.append("text")
       .attr("class", "matrix-row-text")
       .attr("x", config.leftContainer.width)
       .attr("y", state.scale.y.bandwidth() / 2)
-      .text(function(d, i) {return d.data.getShortText(); })
+      .text(function(d, i) {return d.data.getShortText()})
+      .style("cursor", "pointer")
+      .style("alignment-baseline", "central")
       .on("click", function(d, i, j){
-        alert('here');
-      })
+        var Dispatcher = this.state.actionDispatcher
+
+        Dispatcher.updateInfoBar(d)
+        // Dispatcher.updateInfoHeading(d.data.getKey())
+        // Dispatcher.updateInfoSubHeading(d.data.getText())
+        //
+        // var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
+        // Dispatcher.updateInfoDetailsList(symptomList)
+      }.bind(this))
       .on("mouseover", function(d,i,j){
 
         var Dispatcher = this.state.actionDispatcher
@@ -250,9 +273,6 @@ var Diagram = Class.create({
 
         // var keyPool = d.data.link
         // Dispatcher.toggleMultipleCol(keyPool) //TODO:
-        Dispatcher.updateInfoHeading(d.data.getKey())
-        Dispatcher.updateInfoSubHeading(d.data.getText())
-        Dispatcher.updateInfoDetailsList(d.data.symptom)
 
       }.bind(this))
       .on("mouseout", function(d, i, j){
@@ -282,7 +302,7 @@ var Diagram = Class.create({
         .attr("id", "DiagramInfoHeading")
 
     state.rightGroup
-      .append("span")
+      .append("div")
         .attr("id", "DiagramInfoSubHeading")
 
     var infoDetails = state.rightGroup
@@ -327,7 +347,7 @@ var Diagram = Class.create({
         .attr("fill", function(d){
           return d.data.type && (config.color.default[d.data.type] || "lightgrey")
         })
-        .text(function(d) { return d.data.getText(); })
+        .text(function(d) { return d.data.getShortText(); })
         .on("mouseover", function(d, i, j){
 
           var Dispatcher = this.state.actionDispatcher
@@ -336,8 +356,6 @@ var Diagram = Class.create({
 
           // d.data.key is the symptom
           // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
-          Dispatcher.updateInfoHeading(d.data.getKey())
-          Dispatcher.updateInfoSubHeading(d.data.getText())
         }.bind(this))
         .on("mouseout", function(d, i, j){
           var Dispatcher = this.state.actionDispatcher
@@ -387,10 +405,18 @@ var Diagram = Class.create({
         .style("fill", function(d) {
           if(d.data.category === "ancestor"){
             return config.cellFillColor
+          } else if(d.data.category === "missmatch"){
+            return config.cellMissMatchColor
+          }
+
+          return config.cellStrokeColor
+        })
+        .style("stroke", function(d){
+          if (d.data.category === "missmatch"){
+            return config.cellMissMatchColor
           }
           return config.cellStrokeColor
         })
-        .style("stroke", config.cellStrokeColor)
         .style("stroke-width", state.scale.x.bandwidth()/4)
         .attr("d", d3.symbol()
           .size([1/3 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
@@ -425,7 +451,6 @@ var Diagram = Class.create({
             var parentRow = this.state.selection.row(self.__data__.x).node()
             Dispatcher.liftToTop(parentRow)
             //necesasry?
-            // Dispatcher.updateInfoSubHeading([d.data.getText(), matrix[d.x].data.getText()])
 
             // Dispatcher.currElem(self.previousSibling)
           }

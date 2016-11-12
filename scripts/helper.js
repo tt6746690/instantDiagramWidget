@@ -19,26 +19,72 @@ var actionDispatcher = Class.create({
     this.state = state
   },
 
+
+  updateInfoBar: function(d){
+
+    this.updateInfoHeading(d.data.getKey())
+    this.updateInfoSubHeading(d.data.getText())
+
+    var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
+    this.updateInfoDetailsList(symptomList)
+  },
+
   updateInfoHeading: function(text){
-    d3.select("#DiagramInfoHeading").text(text)
+    var regex = /\d+/
+    var t = text.match(regex)
+
+    d3.select("#DiagramInfoHeading")
+      .html("")
+      .append("a")
+        .attr("href", "http://www.omim.org/entry/" + t)
+        .text(text)
   },
 
   updateInfoSubHeading: function(text){
+    var t = text
     if(Array.isArray(text)){
-      d3.select("#DiagramInfoSubHeading").text(text.join("\n"))
+        t = text.join("\n")
     }
-    d3.select("#DiagramInfoSubHeading").text(text)
+    d3.select("#DiagramInfoSubHeading")
+        .text(t)
   },
 
   updateInfoDetailsList: function(symptom){
+    var config = this.config
+
+    // flatten the symptoms to fit in table rows
+    var expandedSymptoms = []
+    symptom.each(function(s){
+      expandedSymptoms.push(s)
+      if(s.matches && s.matches.length !== 0){
+        expandedSymptoms = expandedSymptoms.concat(s.matches)
+      }
+    })
+
+    console.log(symptom);
+
     $("infoDetailsTable").removeAllChildElement()
     d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
-        .data(symptom)
+        .data(expandedSymptoms)
       .enter().append("tr")
         .attr("class", "infoDetailsTableItem")
       .append("th")
-        .text(function(d){
-          return d.getText() + " => " + d.category
+        .text(function(s){
+          var str = ""
+          if(s.category){
+            str += " <-- (" + s.category + ") "
+          }
+          str += s.getText()
+          return str
+        })
+        .style("color", function(d){
+          if(d.matches){
+            return "#5c5c5c"
+          } else if (d.category === "ancestor" || d.category === "match"){
+            return config.cellStrokeColor
+          } else if (d.category === "missmatch"){
+            return config.cellMissMatchColor
+          }
         })
   },
 
@@ -120,17 +166,21 @@ var actionDispatcher = Class.create({
   },
 
   showToolTip: function(currElem, d){
+    var config = this.config
+    var state = this.state
 
     var matrix = currElem.getScreenCTM()
           .translate(+ currElem.getAttribute("cx"), + currElem.getAttribute("cy"))
 
     var isDisorder = d.data.hasOwnProperty("symptom")
+    var isNotSymptom = d.data.hasOwnProperty("type") && (d.data.type === "not_symptom")
 
     var textAlignDirection = isDisorder ? "text-align-right" : "text-align-left"
-    var topShiftAddition = isDisorder ? this.state.scale.y.bandwidth() : 0
-    var tooltipWidth = isDisorder ? this.config.tooltip.width + "px"  : "auto"
+    var topShiftAddition = isDisorder ? state.scale.y.bandwidth() : 0
+    var tooltipWidth = isDisorder ? config.tooltip.width + "px"  : "auto"
+    var hoverTextColor = isNotSymptom ? config.color.default.not_symptom : config.termHoverHighlightColor
 
-    this.state.tooltip
+    state.tooltip
       .html(function(){
         var title = "<div id='tooltipTitle' class=" + textAlignDirection + ">" + d.data.getText() + "</div>"
         return title
@@ -141,9 +191,8 @@ var actionDispatcher = Class.create({
       .style("opacity", 1)
       .style("left", (matrix.e) + "px")
       .style("top", (matrix.f + topShiftAddition) + "px")
-      .style("width",function(d){
-        return tooltipWidth
-      })
+      .style("color", hoverTextColor)
+      .style("width", tooltipWidth)
 
   },
 
@@ -237,9 +286,6 @@ var Symptom = Class.create(Term, {
     $super(key, text)
     this.category = category
     this.type = type
-
-    // for setting column ordering
-    this.calculatePrevalence()
   },
 
   calculatePrevalence: function(){
@@ -278,8 +324,14 @@ var Symptom = Class.create(Term, {
     if(this.type === "not_symptom"){
       symText = "NO " + symText
     }
+    return symText
 
-    var cutoff = 30
+  },
+
+  getShortText: function(){
+    var symText = this.getText()
+
+    var cutoff = 25
     if(symText.length > cutoff){
       symText = symText.slice(0, cutoff) + " ..."
     }
@@ -365,7 +417,7 @@ var Disorder = Class.create(Term, {
   getShortText: function(){
     var disText = this.getText()
 
-    var cutoff = 30
+    var cutoff = 28
     if(disText.length > cutoff){
       disText = disText.slice(0, cutoff) + " ..."
     }
@@ -394,30 +446,32 @@ var Matrix = Class.create({
  */
 
 var dataHandler = Class.create({
-  initialize: function(inputData, config, state){
+  initialize: function(data, config, state){
     this.config = config
     this.state = state
 
-    this.inputData = inputData
-    this.procData = this.preProcess(this.inputData)
-    this.completeData = JSON.parse(JSON.stringify(this.procData))
-    // this.popData = this.populateLinkContent(this.procData)
+
+    this.completeData = this.convertToObject(data)
+    this.extractMatchesData = this.mergeMatchingSymptoms(data)
+    this.procData = this.preProcess(this.extractMatchesData)
     this.matrix = this.toMatrix(this.procData)
+
   },
 
+
   //utility for sorting symptoms
-  setUpOrderingBySelection: function(data, selectionFirst){
+  setUpOrderingBySelection: function(data){
     var config = this.config
 
     data.each(function(d){
       // alphabetical order for the moment
       d.symptom.sort(function(a,b){
-        var ap = Symptom.prevalence[a.key]
-        var bp = Symptom.prevalence[b.key]
+        var aPreva = Symptom.prevalence[a.key]
+        var bPreva = Symptom.prevalence[b.key]
 
-        if (ap > bp){
+        if (aPreva > bPreva){
            return -1;
-        } else if (ap < bp){
+        } else if (aPreva < bPreva){
           return  1;
         } else{
           // prevalence score equal now sort by alphabet
@@ -435,16 +489,76 @@ var dataHandler = Class.create({
     })
   },
 
-  populateLinkContent: function(data){
-    data.disorder.each(function(d){
-      d.populateWith(data.symptom)
+  getSymptomList: function(disKey){
+
+    var disorder = this.completeData.filter(function(d){
+      if(d.key === disKey){
+        return true
+      }
+      return false
     })
-    return data
+
+    if(disorder[0] && disorder[0].symptom){
+      return disorder[0].symptom
+    } else {
+      return "undefined"
+    }
+
   },
 
+  convertToObject: function(data){
+
+    var clientSelectedSymptom = this.state.outsideCache.all
+    var res = []
+
+    data.each(function(d){
+      var syms = []
+      d.symptom.each(function(s){
+        var sym = new Symptom(s.key, s.text)
+        var matches = []
+
+        // if symptom has a matching phenotype...
+        if (s.matches && s.matches.length !== 0){
+          // cast matching phenotypes to Symptom objects
+          var matchObj = s.matches.map(function(m){
+            var phenotype = new Symptom(m.key, m.text, m.type, m.category)
+
+            // update disabled property from cache object
+            if(clientSelectedSymptom.hasOwnProperty(phenotype.key)){
+              clientSelectedSymptom[phenotype.key].disabled && phenotype.setDisabled(clientSelectedSymptom[phenotype.key].disabled)
+            }
+            return phenotype
+          })
+          // put matching phenotype to symptom...
+          sym.matches = matchObj
+        }
+        syms.push(sym)
+      })
+      res.push(new Disorder(d.key, d.text, syms))
+    })
+
+    return res
+  },
+
+  mergeMatchingSymptoms: function(data){
+    var res = JSON.parse(JSON.stringify(data)) // deep clone does not preserve type
+
+    res.each(function(d){
+      var matches = []
+
+      d.symptom.each(function(s){
+        var matchingSymptoms = s.matches
+        if(matchingSymptoms && matchingSymptoms.length !== 0){
+          matches = matches.concat(matchingSymptoms)
+        }
+      })
+      d.symptom = matches
+    })
+    return res
+  },
 
   //preprocess data into correct data structure
-  preProcess: function(inputData){
+  preProcess: function(data){
     var config = this.config
     var state = this.state
 
@@ -453,15 +567,16 @@ var dataHandler = Class.create({
 
     outputData = []
 
-    // initialize static variable
+    // initialize static variable for ordering columns
     Symptom.prevalence = {}
 
     // logically aggregate symptom
-    inputData.each(function(d){
+    data.each(function(d){
       if(d.symptom.length === 0){return}
       // construct symptom objects
       var original = d.symptom.map(function(s){
-        sym = new Symptom(s.key, s.text, s.type, s.category)
+        var sym = new Symptom(s.key, s.text, s.type, s.category)
+        sym.calculatePrevalence()
         if(clientSelectedSymptom.hasOwnProperty(sym.key)){
           clientSelectedSymptom[s.key].disabled && sym.setDisabled(clientSelectedSymptom[s.key].disabled)
         }
@@ -472,9 +587,16 @@ var dataHandler = Class.create({
       console.log("DISORDER: " + d.key);
 
       var nonDuplicates = []
-      var first = original.pop()
-      console.log("PUSHED: " + first.toString());
-      nonDuplicates.push(first)
+      // adding user-selected phenotype that did not match anything to the array
+      var nonDuplicates = Object.keys(clientSelectedSymptom).map(function(k){
+        var s = clientSelectedSymptom[k]
+        var sym = new Symptom(s.key, s.text, s.type, "unknown")
+        sym.calculatePrevalence()
+        if(clientSelectedSymptom.hasOwnProperty(sym.key)){
+          clientSelectedSymptom[s.key].disabled && sym.setDisabled(clientSelectedSymptom[s.key].disabled)
+        }
+        return sym
+      })
 
       while(original.length !== 0){
         var next = original.pop()
@@ -499,11 +621,11 @@ var dataHandler = Class.create({
           nonDuplicates.push(next)
         }
       }
+
       d.symptom = nonDuplicates
       outputData.push(new Disorder(d.key, d.text, d.symptom))
 
     })
-    console.log(Symptom.prevalence);
     return outputData
   },
 
@@ -511,7 +633,7 @@ var dataHandler = Class.create({
   toMatrix: function(data){
 
     // ordering of raw data
-    this.setUpOrderingBySelection(data, true)
+    this.setUpOrderingBySelection(data)
 
     // populate matrix
     var matrix = new Matrix()

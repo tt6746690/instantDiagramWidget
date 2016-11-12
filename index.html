@@ -24,6 +24,7 @@
 <script src="./scripts/dataraw.js"></script>
 <script src="./scripts/data2.js"></script>
 <script src="./scripts/excludeUnknown.js"></script>
+<script src="./scripts/dataWithSymptomAsWellAsMatches.js"></script>
 <script src="./scripts/cache.js"></script>
 <script src="./scripts/diagram.js"></script>
 <script src="./scripts/helper.js"></script>
@@ -31,7 +32,7 @@
   // instantiation
   var d = new Diagram(
     $('instantSearchDiagram'),
-    excludeData, {})
+    everythingData, {})
 
   // methods invocation
   this.d = d

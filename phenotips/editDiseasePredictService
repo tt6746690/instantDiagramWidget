@@ -66,7 +66,7 @@
           #end
 
 
-          ## consider relationship between use-selected-yes / omim-associated symptoms
+          ## consider relationship between use-selected-yes / disorder-associated symptoms
           #foreach ($i in $symptoms)
             #set($matchingSymptom = {'key': $i, 'text':  $services.vocabularies.resolveTerm($i).name, 'type': 'symptom', 'category': 'unknown'})
 
@@ -94,7 +94,7 @@
 
 
 
-          ## consider relationship between use-selected-no / omim-associated symptoms
+          ## consider relationship between use-selected-no / disorder-associated symptoms
           #foreach ($i in $notSymptoms)
             #set($matchingNotSymptom = {'key': $i, 'text':  $services.vocabularies.resolveTerm($i).name, 'type': 'not_symptom', 'category': 'unknown'})
 
@@ -117,13 +117,14 @@
           #end
 
 
-        #foreach($match in $phenotype.matches)
-          #if(!$s.contains($match))
-            #set($discard = $s.add($match))
-          #end
-        #end
+          ##
+          ###foreach($match in $phenotype.matches)
+            ###if(!$s.contains($match))
+              ###set($discard = $s.add($match))
+            ###end
+          ###end
 
-
+          #set($discard = $s.add($phenotype))
 
         #end ## end foreach actual_symptom for one disorder
 

@@ -7,7 +7,6 @@ var Diagram = Class.create({
   initialize: function(domElt, data, options){
 
     this.config = this._resolveConfig(options, domElt)
-    // this.config.set()
 
     this.state = {}
     this.state.outsideCache = cache
@@ -58,11 +57,16 @@ var Diagram = Class.create({
       height: 200,
       backgroundColor: "#e3e3e3"
     },
+    cellSymbol: {
+      "match": "Circle",
+      "ancestor": "Circle",
+      "missmatch": "Cross"
+    },
     cellStrokeColor: "#80cfe4",
     cellFillColor: "#d2f1f9",
     cellMissMatchColor: "#ff3434",
     termHoverHighlightColor: "#6caaba",
-    scaleInnerPadding: .1,
+    scaleInnerPadding: .05,
     numDisorderdisplayed: 20,
     oneCellWidth: 25,
   },
@@ -77,7 +81,6 @@ var Diagram = Class.create({
       }
     }
   },
-
 
   // resolve internal configs and user specified options
   _resolveConfig: function(options, domElt){
@@ -98,6 +101,8 @@ var Diagram = Class.create({
     this.draw()
   },
 
+
+
   // set up x and y scale range
   _setUpScale: function(){
     var config = this.config
@@ -112,7 +117,7 @@ var Diagram = Class.create({
     // width of total cell length for settitng up scale
     config.middleContainer.scaleWidth = symptomLength * config.oneCellWidth
 
-    // padded with config.top
+    // padded with config.top to account for slanted column heading text
     config.middleContainer.scaleWidthPadded = config.middleContainer.scaleWidth + (config.top / 1.3)
 
     // width of middle div / svg change with number of symptom but has a maximum width
@@ -123,8 +128,9 @@ var Diagram = Class.create({
 
 
     var Scale = {
-      x: d3.scaleBand().rangeRound([0, config.middleContainer.scaleWidth]).paddingInner([config.scaleInnerPadding]).paddingOuter([config.scaleInnerPadding]),
-      y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.scaleInnerPadding]).paddingOuter([config.scaleInnerPadding])
+      x: d3.scaleBand().rangeRound([0, config.middleContainer.scaleWidth]).paddingInner([config.scaleInnerPadding]),
+      y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.scaleInnerPadding]),
+      legend: d3.scaleBand().rangeRound([0, config.top/1.5]).paddingInner([config.scaleInnerPadding])
     }
     return Scale
   },
@@ -133,6 +139,7 @@ var Diagram = Class.create({
   draw: function(){
 
     this._createSVGContainers()
+    this._createLegend()
     this._createRowHeadings()
     this._createMatrix()
     this._createInfoBar()
@@ -167,9 +174,9 @@ var Diagram = Class.create({
     // set scale domain to symptom and disorder names
     state.scale.x.domain(state.data[0].symptom.map(function(s){return s.text}))
     state.scale.y.domain(state.data.map(function(d){return d.text}))
+    state.scale.legend.domain(Object.keys(config.cellSymbol))
 
     var rootDiv = d3.select('#' + config.domElement.id)
-
 
     state.tooltip = rootDiv
       .append("div")
@@ -180,14 +187,25 @@ var Diagram = Class.create({
       .style("opacity", 0)
       .style("position", "fixed")
       .style("background", config.tooltip.backgroundColor)   // same as row highlight color
-      .style("border", "#cdc9c9 dotted")
-      .style("border-width", "1px")
       .style("font-weight", "bold")
-      // .style("text-align", "center")
 
-    state.leftGroup = rootDiv
+    state.leftContainer = rootDiv
       .append("div")
         .attr("id", "leftContainer")
+
+    state.cellLegend = state.leftContainer
+      .append("svg")
+        .attr("id", "cellLegend")
+        .attr("width", config.leftContainer.width + "px")
+        .attr("height", config.top + "px")
+        .style("position", "absolute")
+      .append("g")
+        .attr("id", "legendGroup")
+        .attr("class", "svg-group")
+        .attr("transform", "translate(" + config.leftContainer.width/3 + "," + config.top/3 + ")")
+
+
+    state.leftGroup = state.leftContainer
       .append("svg")
         .attr("width", config.leftContainer.width + "px")
         .attr("height", config.totalHeight + "px")
@@ -197,20 +215,20 @@ var Diagram = Class.create({
         .attr("class", "svg-group")
 
 
-      state.middleGroup = rootDiv
-        .append("div")
-          .attr("id","middleContainer")
-          .style("max-width", config.middleContainer.adaptiveWidthPadded  + "px")
-          .style("height", config.totalHeight + "px")
-          .style("margin-left", config.leftContainer.width + "px")
-        .append("svg")
-          .attr("id", "middleSVG")
-          .style("width", config.middleContainer.scaleWidthPadded + "px")
-          .style("height",  config.totalHeight + "px")
-        .append("g")
-          .attr("transform", "translate(0," + config.top + ")")
-          .attr("id", "middleGroup")
-          .attr("class", "svg-group")
+    state.middleGroup = rootDiv
+      .append("div")
+        .attr("id","middleContainer")
+        .style("max-width", config.middleContainer.adaptiveWidthPadded  + "px")
+        .style("height", config.totalHeight + "px")
+        .style("margin-left", config.leftContainer.width + "px")
+      .append("svg")
+        .attr("id", "middleSVG")
+        .style("width", config.middleContainer.scaleWidthPadded + "px")
+        .style("height",  config.totalHeight + "px")
+      .append("g")
+        .attr("transform", "translate(0," + config.top + ")")
+        .attr("id", "middleGroup")
+        .attr("class", "svg-group")
 
     state.rightGroup = rootDiv
       .append("div")
@@ -222,11 +240,55 @@ var Diagram = Class.create({
       .append("div")
         .style("height", config.height + "px")
 
-
-
-
-
   },
+
+  _createLegend: function(){
+    var config = this.config
+    var state = this.state
+
+    var legendData = Object.keys(config.cellSymbol)
+
+    var legendItem = state.cellLegend.selectAll(".legendItem")
+        .data(legendData)
+      .enter().append("g")
+          .attr("class", "legendItem")
+          .attr("transform", function(d) { return "translate(0," + state.scale.legend(d) + ")"; })
+
+    legendItem.append("path")
+      .attr("transform", "rotate(45)")
+      .attr("d", d3.symbol()
+        .size([1/3 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+        .type(function(d){
+          var symbol = "symbol" + config.cellSymbol[d]
+          return  d3[symbol]
+        }).bind(this)
+      )
+      .style("fill", function(d) {
+        if(d === "ancestor"){
+          return config.cellFillColor
+        } else if(d === "missmatch"){
+          return config.cellMissMatchColor
+        }
+
+        return config.cellStrokeColor
+      })
+      .style("stroke", function(d){
+        if (d === "missmatch"){
+          return config.cellMissMatchColor
+        }
+        return config.cellStrokeColor
+      })
+      .style("stroke-width", state.scale.x.bandwidth()/4)
+
+
+      legendItem.append("text")
+        .attr("x", "2em")
+        .attr("dominant-baseline", "central")
+        .attr("text-anchor", "start")
+        .style("font-style", "italic")
+        .text(function(d){return d})
+  },
+
 
   _createRowHeadings: function(){
     var config = this.config
@@ -246,8 +308,6 @@ var Diagram = Class.create({
       .style("fill", "#d1d1d1")
 
 
-
-
     state.rowHeadings.append("text")
       .attr("class", "matrix-row-text")
       .attr("x", config.leftContainer.width)
@@ -256,19 +316,18 @@ var Diagram = Class.create({
       .style("cursor", "pointer")
       .style("alignment-baseline", "central")
       .on("click", function(d, i, j){
-        var Dispatcher = this.state.actionDispatcher
 
+        var Dispatcher = this.state.actionDispatcher
         Dispatcher.updateInfoBar(d)
-        // Dispatcher.updateInfoHeading(d.data.getKey())
-        // Dispatcher.updateInfoSubHeading(d.data.getText())
-        //
-        // var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
-        // Dispatcher.updateInfoDetailsList(symptomList)
+        Dispatcher.toggleRowHeadingUnderline(d.x)
+
       }.bind(this))
       .on("mouseover", function(d,i,j){
 
         var Dispatcher = this.state.actionDispatcher
-        Dispatcher.showToolTip(j[i], d)
+        if(d.data.getText() !== d.data.getShortText()){
+          Dispatcher.showToolTip(j[i], d)
+        }
         Dispatcher.toggleRow(d.x)
 
         // var keyPool = d.data.link
@@ -279,55 +338,55 @@ var Diagram = Class.create({
 
         var Dispatcher = this.state.actionDispatcher
         Dispatcher.toggleRow(d.x)
-
-        // remove tooltip
         Dispatcher.removeToolTip()
 
         var keyPool = d.data.link
         // Dispatcher.toggleMultipleCol(keyPool) //TODO
 
       }.bind(this))
-
-
-
-
   },
 
   _createInfoBar: function(){
     var config = this.config
     var state = this.state
 
-    state.rightGroup
-      .append("p")
+    var headings = state.rightGroup
+      .append("div")
+        .attr("id", "InfoHeading")
+        .attr("width", config.rightContainer.width)
+        .attr("height", config.top)
+
+    headings.append("div")
         .attr("id", "DiagramInfoHeading")
 
-    state.rightGroup
-      .append("div")
+    headings.append("div")
         .attr("id", "DiagramInfoSubHeading")
 
     var infoDetails = state.rightGroup
       .append("div")
         .attr("id", "infoDetails")
+        .style("margin-top", config.top)
 
     infoDetails
       .append("table")
         .attr("id", "infoDetailsTable")
+        .style("overflow-y", "auto")
   },
 
-  // create matrix background
+  // create matrix components
   _createMatrix: function(){
     var state = this.state
     var config = this.config
     /**
      * COLUMNS
      */
-
+    console.log(state.scale.x.bandwidth());
 
     state.column = state.middleGroup.selectAll(".matrix-column")
         .data(state.matrix[0]) // first row
       .enter().append("g")
         .attr("class", "matrix-column")
-        .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})  //rotate(-45)
+        .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})
 
 
     state.column
@@ -358,14 +417,13 @@ var Diagram = Class.create({
           // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
         }.bind(this))
         .on("mouseout", function(d, i, j){
+
           var Dispatcher = this.state.actionDispatcher
           Dispatcher.toggleColumn(d.y)
+          Dispatcher.removeToolTip()
 
           var keyPool = d.data.link
           // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
-
-          // remove tooltip
-          Dispatcher.removeToolTip()
 
         }.bind(this))
 
@@ -419,17 +477,13 @@ var Diagram = Class.create({
         })
         .style("stroke-width", state.scale.x.bandwidth()/4)
         .attr("d", d3.symbol()
-          .size([1/3 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+          .size([1/4 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
           .type(function(d){
-            if(d.data.category === "match"){
-              return d3.symbolCircle
-            } else if(d.data.category === "missmatch"){
-              return d3.symbolCross
-            } else if(d.data.category === "ancestor"){
-              return d3.symbolCircle
-            } else
-            return d3.symbolCircle
-          })
+
+            var symbol = "symbol" + this.config.cellSymbol[d.data.category]
+            return  d3[symbol] || d3.symbolCircle
+
+          }).bind(this)
         )
         .on("mouseover", function(d, i, j){
           // d <==> current cell object {x,y,z}

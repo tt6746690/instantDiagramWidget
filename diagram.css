@@ -30,8 +30,10 @@
   vertical-align: top;
 
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
+  padding: 1em;
 }
+
 
 .matrix-row-background,
 .matrix-column-background {
@@ -45,7 +47,7 @@
   font-size: 17px;
 }
 .matrix-row-text {
-  font-size: 17px;
+  font-size: 1.1em;
   text-anchor: end;
 }
 
@@ -84,9 +86,9 @@
 
 
 #DiagramInfoHeading {
-  font-size: 40px;
+  font-size: 14px;
   color: #000000;
-  margin-bottom: 15px;
+  margin-bottom: 5px;
 }
 
 #DiagramInfoSubHeading {
@@ -114,4 +116,18 @@
 
 .text-align-right{
   text-align: right;
+}
+
+
+.infoDetailsTableItemText{
+  padding-left : 1em;
+}
+
+.infoDetailsTableItemSymbol {
+  padding-left : 1em;
+}
+
+
+#InfoHeading {
+  padding-bottom: 2em;
 }

@@ -22,38 +22,63 @@ var actionDispatcher = Class.create({
 
   updateInfoBar: function(d){
 
-    this.updateInfoHeading(d.data.getKey())
-    this.updateInfoSubHeading(d.data.getText())
+    this.updateInfoHeading(d.data)
+    // this.updateInfoSubHeading(d.data.getText())
 
     var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
     this.updateInfoDetailsList(symptomList)
   },
 
-  updateInfoHeading: function(text){
-    var regex = /\d+/
-    var t = text.match(regex)
+  updateInfoHeading: function(d){
+    var omimID = d.getKey()
+    var omimText = d.getText()
 
-    d3.select("#DiagramInfoHeading")
+    var regex = /\d+/
+    var t = omimID.match(regex)
+
+    var infoHeading = d3.select("#DiagramInfoHeading")
       .html("")
+
+    infoHeading.append("span")
       .append("a")
+        .attr("target", "_blank")
+        .attr("href", "http://www.omim.org/")
+        .text("OMIM")
+
+    infoHeading.append("span")
+      .append("a")
+        .attr("target", "_blank")
         .attr("href", "http://www.omim.org/entry/" + t)
+        .text(omimID)
+        .style("padding-left", "1em")
+
+    var text = omimText
+    if(Array.isArray(omimText)){
+        text = omimText.join("\n")
+    }
+    var infoSubHeading = d3.select("#DiagramInfoSubHeading")
         .text(text)
   },
 
-  updateInfoSubHeading: function(text){
-    var t = text
-    if(Array.isArray(text)){
-        t = text.join("\n")
-    }
-    d3.select("#DiagramInfoSubHeading")
-        .text(t)
-  },
 
   updateInfoDetailsList: function(symptom){
     var config = this.config
+    var state = this.state
+
+    // sort symptom to lift those with match to top
+    symptom.sort(function(a,b){
+      if(a.matches && !b.matches){
+        return -1
+      } else if(!a.matches && b.matches){
+        return 1
+      } else {
+        return 0
+      }
+    })
 
     // flatten the symptoms to fit in table rows
     var expandedSymptoms = []
+
     symptom.each(function(s){
       expandedSymptoms.push(s)
       if(s.matches && s.matches.length !== 0){
@@ -61,22 +86,12 @@ var actionDispatcher = Class.create({
       }
     })
 
-    console.log(symptom);
-
     $("infoDetailsTable").removeAllChildElement()
-    d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
+    var tableCell = d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
         .data(expandedSymptoms)
       .enter().append("tr")
         .attr("class", "infoDetailsTableItem")
-      .append("th")
-        .text(function(s){
-          var str = ""
-          if(s.category){
-            str += " <-- (" + s.category + ") "
-          }
-          str += s.getText()
-          return str
-        })
+      .append("td")
         .style("color", function(d){
           if(d.matches){
             return "#5c5c5c"
@@ -86,8 +101,57 @@ var actionDispatcher = Class.create({
             return config.cellMissMatchColor
           }
         })
-  },
 
+
+    tableCell.append("span")
+      .filter(function(d){
+        return d.category
+      })
+      .attr("class", function(s){
+        if(s.category){
+          return "infoDetailsTableItemSymbol"
+        }
+      })
+      .append("svg")
+        .attr("width", state.scale.x.bandwidth()/1.5)
+        .attr("height", state.scale.y.bandwidth()/1.5)
+      .append("path")
+        .attr("transform", "translate(" + state.scale.x.bandwidth()/3 + ", "+ state.scale.y.bandwidth()/3 +") rotate(45)")
+        .attr("d", d3.symbol()
+          .size([1/7 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+          .type(function(d){
+            var symbol = "symbol" + config.cellSymbol[d.category]
+            return  d3[symbol] || d3.symbolCircle
+          }).bind(this)
+        )
+        .style("fill", function(d) {
+          if(d.category === "ancestor"){
+            return config.cellFillColor
+          } else if(d.category === "missmatch"){
+            return config.cellMissMatchColor
+          }
+          return config.cellStrokeColor
+        })
+        .style("stroke", function(d){
+          if (d.category === "missmatch"){
+            return config.cellMissMatchColor
+          }
+          return config.cellStrokeColor
+        })
+        .style("stroke-width", state.scale.x.bandwidth()/8)
+
+
+    tableCell.append("span")
+        .attr("class", function(s){
+          if(s.category){
+            return "infoDetailsTableItemText"
+          }
+        })
+        .text(function(s){
+          return s.getText()
+        })
+
+  },
   liftToTop: function(elem){
     var plane = elem.parentNode
     plane.appendChild(elem)
@@ -100,19 +164,37 @@ var actionDispatcher = Class.create({
   },
 
   toggleRow: function(rowNum){
+    this.toggleRowHeading(rowNum)
+    this.toggleRowBackground(rowNum)
+  },
+
+  toggleRowHeading: function(rowNum){
     // highlight row text
     d3.selectAll(".matrix-row")
       .filter(function(d, i){ return rowNum === i})
       .classed("row-active", function(d, i) {
       return !d3.select(this).classed("row-active")
     })
+  },
 
+  toggleRowBackground: function(rowNum){
     // highlight background
     d3.selectAll(".matrix-row-background")
       .filter(function(d){ return rowNum === d.x})
       .classed("row-background-active", function(d, i){
       return !d3.select(this).classed("row-background-active")
     })
+  },
+
+  toggleRowHeadingUnderline: function(rowNum){
+    d3.selectAll(".matrix-row-text")
+      .filter(function(d){ return rowNum !== d.x})
+      .attr("text-decoration", "none")
+
+    d3.selectAll(".matrix-row-text")
+      .filter(function(d){ return rowNum === d.x})
+      .attr("text-decoration", "underline")
+      .style("text-decoration-color", this.config.cellStrokeColor)
   },
 
 
@@ -204,6 +286,7 @@ var actionDispatcher = Class.create({
 
   removeToolTip: function(){
     this.state.tooltip
+      .html("")
       .transition()
       .delay(10)
       .style("opacity", 0)

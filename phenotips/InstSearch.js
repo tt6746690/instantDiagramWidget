@@ -16,12 +16,13 @@ document.observe('xwiki:dom:loading', function() {
           this.state = {}
           this.state.outsideCache = cache
           this.state.dataHandler = new dataHandler(data, this.config, this.state)
+
           this.state.data = this.state.dataHandler.procData
           this.state.matrix = this.state.dataHandler.matrix
-          this.state.scale = this.setUpScale()
+          this.state.scale = this._setUpScale()
           this.state.selection = this._specifySelect()
 
-          this.state.actionDispatcher = new actionDispatcher(this.config)
+          this.state.actionDispatcher = new actionDispatcher(this.config, this.state)
 
           this.destroy()
           this.draw()
@@ -29,38 +30,50 @@ document.observe('xwiki:dom:loading', function() {
 
         // internal configs
         internalConfig: {
-          width: 600,
-          height: 500,
-          margin: {
-            left: 300,
-            right: 300,
-            top: 200,
-            bottom: 100
+          top: 150,
+          height: 450,
+          totalHeight: 0, // height + top = 700
+          leftContainer: {
+            width: 270
+          },
+          middleContainer:{
+            width: 450,
+            scaleWidth: 0,    // oneCellwidth * symptomNumber; setting up x scale
+            adaptiveWidth: 0, // oneCellWidth * numbeSymptomdisplayed
+            adaptiveWidthPadded: 0    // adaptiveWidth + top; for setting up div and svg width
+          },
+          rightContainer: {
+            width: 300
           },
           color: {
             default: {
-              symptom: "#b4f0c9",
-              not_symptom: "#ff9595",
+              symptom: "#6caaba",
+              not_symptom: "#ff7575",
               free_symptom: "#878787"
             },
             highlight: {
-              symptom: "#5caf7a",
+              symptom: "#39aac7",
               not_symptom: "red",
               free_symptom: "#878787"
             }
           },
-          tooltips: {
-            width: 140,
-            height: 100
+          tooltip: {
+            width: 270,
+            height: 200,
+            backgroundColor: "#e3e3e3"
           },
-          cellStrokeColor: "#81ddab",
-          cellFillColor: "#c3ffe4",
-          numSymptomdisplayed: 50,
+          cellSymbol: {
+            "match": "Circle",
+            "ancestor": "Circle",
+            "missmatch": "Cross"
+          },
+          cellStrokeColor: "#80cfe4",
+          cellFillColor: "#d2f1f9",
+          cellMissMatchColor: "#ff3434",
+          termHoverHighlightColor: "#6caaba",
+          scaleInnerPadding: .05,
           numDisorderdisplayed: 20,
-          innerPadding: .1,
-          cellWidth: 25,
-          scrollWidth: 0, // cellWidth * numbeSymptomdisplayed
-          totalCellWidth: 0 // cellwidth * symptomNumber
+          oneCellWidth: 25,
         },
 
 
@@ -73,7 +86,6 @@ document.observe('xwiki:dom:loading', function() {
             }
           }
         },
-
 
         // resolve internal configs and user specified options
         _resolveConfig: function(options, domElt){
@@ -94,23 +106,36 @@ document.observe('xwiki:dom:loading', function() {
           this.draw()
         },
 
+
+
         // set up x and y scale range
-        setUpScale: function(){
+        _setUpScale: function(){
           var config = this.config
           var state = this.state
 
-          var symptomLength = state.data[0].symptom.length
-          if(symptomLength > config.numSymptomdisplayed){
-            symptomLength = config.numSymptomdisplayed
-          }
+          // total height of containers
+          config.totalHeight = config.height + config.top
 
-          config.totalCellWidth = symptomLength * config.cellWidth
-          config.scrollWidth = Math.max(config.width, config.totalCellWidth)
+          // total number of columns in the matrix
+          var symptomLength = state.data[0].symptom.length
+
+          // width of total cell length for settitng up scale
+          config.middleContainer.scaleWidth = symptomLength * config.oneCellWidth
+
+          // padded with config.top to account for slanted column heading text
+          config.middleContainer.scaleWidthPadded = config.middleContainer.scaleWidth + (config.top / 1.3)
+
+          // width of middle div / svg change with number of symptom but has a maximum width
+          config.middleContainer.adaptiveWidth = Math.min(config.middleContainer.width, config.middleContainer.scaleWidth)
+
+          // to account for slanted column text ... add config.top to width
+          config.middleContainer.adaptiveWidthPadded = config.middleContainer.adaptiveWidth + (config.top / 1.3)
 
 
           var Scale = {
-            x: d3.scaleBand().rangeRound([0, config.totalCellWidth]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding]),
-            y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.innerPadding]).paddingOuter([config.innerPadding])
+            x: d3.scaleBand().rangeRound([0, config.middleContainer.scaleWidth]).paddingInner([config.scaleInnerPadding]),
+            y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.scaleInnerPadding]),
+            legend: d3.scaleBand().rangeRound([0, config.top/1.5]).paddingInner([config.scaleInnerPadding])
           }
           return Scale
         },
@@ -119,6 +144,7 @@ document.observe('xwiki:dom:loading', function() {
         draw: function(){
 
           this._createSVGContainers()
+          this._createLegend()
           this._createRowHeadings()
           this._createMatrix()
           this._createInfoBar()
@@ -131,14 +157,14 @@ document.observe('xwiki:dom:loading', function() {
           var state = this.state
 
           var curUpperBound = d.state.scale.x.range()[1]
-          var compress = (curUpperBound == config.scrollWidth) ? true : false
+          var compress = (curUpperBound == config.middleContainer.adaptiveWidth) ? true : false
 
           if(compress){
-            state.scale.x.rangeRound([0,config.width])
-            d3.select("middleSVG").attr("width", config.width)
+            state.scale.x.rangeRound([0,config.middleContainer.width])
+            d3.select("middleSVG").attr("width", config.middleContainer.width)
           } else {
-            state.scale.x.rangeRound([0,config.scrollWidth])
-            d3.select("middleSVG").attr("width", config.scrollWidth)
+            state.scale.x.rangeRound([0,config.middleContainer.adaptiveWidth])
+            d3.select("middleSVG").attr("width", config.middleContainer.adaptiveWidth)
           }
 
           this.reload()
@@ -153,41 +179,121 @@ document.observe('xwiki:dom:loading', function() {
           // set scale domain to symptom and disorder names
           state.scale.x.domain(state.data[0].symptom.map(function(s){return s.text}))
           state.scale.y.domain(state.data.map(function(d){return d.text}))
+          state.scale.legend.domain(Object.keys(config.cellSymbol))
 
-          this.state.leftGroup = d3.select('#' + config.domElement.id)
+          var rootDiv = d3.select('#' + config.domElement.id)
+
+          state.tooltip = rootDiv
+            .append("div")
+            .attr("id", "html-tooltip")
+            .style("max-width", config.tooltip.width + "px")
+            .style("max-height", config.tooltip.height + "px")
+            .style("overflow-y", "auto")
+            .style("opacity", 0)
+            .style("position", "fixed")
+            .style("background", config.tooltip.backgroundColor)   // same as row highlight color
+            .style("font-weight", "bold")
+
+          state.leftContainer = rootDiv
             .append("div")
               .attr("id", "leftContainer")
+
+          state.cellLegend = state.leftContainer
             .append("svg")
-              .attr("width", config.margin.left + "px")
-              .attr("height", (config.height + config.margin.top) + "px")
+              .attr("id", "cellLegend")
+              .attr("width", config.leftContainer.width + "px")
+              .attr("height", config.top + "px")
+              .style("position", "absolute")
             .append("g")
-              .attr("transform", "translate(0," + config.margin.top + ")")
+              .attr("id", "legendGroup")
+              .attr("class", "svg-group")
+              .attr("transform", "translate(" + config.leftContainer.width/3 + "," + config.top/3 + ")")
+
+
+          state.leftGroup = state.leftContainer
+            .append("svg")
+              .attr("width", config.leftContainer.width + "px")
+              .attr("height", config.totalHeight + "px")
+            .append("g")
+              .attr("transform", "translate(0," + config.top + ")")
               .attr("id", "leftGroup")
               .attr("class", "svg-group")
 
-          this.state.middleGroup = d3.select('#' + config.domElement.id)
+
+          state.middleGroup = rootDiv
             .append("div")
               .attr("id","middleContainer")
-              .style("width", config.width + "px")
-              .style("height", (config.height + config.margin.top) + "px")
-              .style("margin-left", config.margin.left + "px")
+              .style("max-width", config.middleContainer.adaptiveWidthPadded  + "px")
+              .style("height", config.totalHeight + "px")
+              .style("margin-left", config.leftContainer.width + "px")
             .append("svg")
-              .attr("width", config.scrollWidth + "px")
-              .attr("height",  (config.height + config.margin.top) + "px")
               .attr("id", "middleSVG")
+              .style("width", config.middleContainer.scaleWidthPadded + "px")
+              .style("height",  config.totalHeight + "px")
             .append("g")
-              .attr("transform", "translate(0," + config.margin.top + ")")
+              .attr("transform", "translate(0," + config.top + ")")
               .attr("id", "middleGroup")
               .attr("class", "svg-group")
 
-          this.state.rightGroup = d3.select('#' + config.domElement.id)
+          state.rightGroup = rootDiv
             .append("div")
               .attr("id", "rightContainer")
-              .style("width", config.margin.right + "px")
-              .style("height",  (config.height + config.margin.top) + "px")
-              .style("margin-left", (config.margin.right + config.width + 10) + "px")
+              .style("width", config.rightContainer.width + "px")
+              .style("height",  config.totalHeight + "px")
+              .style("margin-left", (config.leftContainer.width + config.middleContainer.adaptiveWidthPadded + 10) + "px")
+              .style("overflow-y", "auto")
+            .append("div")
+              .style("height", config.height + "px")
 
         },
+
+        _createLegend: function(){
+          var config = this.config
+          var state = this.state
+
+          var legendData = Object.keys(config.cellSymbol)
+
+          var legendItem = state.cellLegend.selectAll(".legendItem")
+              .data(legendData)
+            .enter().append("g")
+                .attr("class", "legendItem")
+                .attr("transform", function(d) { return "translate(0," + state.scale.legend(d) + ")"; })
+
+          legendItem.append("path")
+            .attr("transform", "rotate(45)")
+            .attr("d", d3.symbol()
+              .size([1/3 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+              .type(function(d){
+                var symbol = "symbol" + config.cellSymbol[d]
+                return  d3[symbol]
+              }).bind(this)
+            )
+            .style("fill", function(d) {
+              if(d === "ancestor"){
+                return config.cellFillColor
+              } else if(d === "missmatch"){
+                return config.cellMissMatchColor
+              }
+
+              return config.cellStrokeColor
+            })
+            .style("stroke", function(d){
+              if (d === "missmatch"){
+                return config.cellMissMatchColor
+              }
+              return config.cellStrokeColor
+            })
+            .style("stroke-width", state.scale.x.bandwidth()/4)
+
+
+            legendItem.append("text")
+              .attr("x", "2em")
+              .attr("dominant-baseline", "central")
+              .attr("text-anchor", "start")
+              .style("font-style", "italic")
+              .text(function(d){return d})
+        },
+
 
         _createRowHeadings: function(){
           var config = this.config
@@ -198,74 +304,94 @@ document.observe('xwiki:dom:loading', function() {
             .enter().append("g")
               .attr("class", "matrix-row")
               .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
-            .append("a")
-              .attr("href", function(d){
-                // return "http://www.omim.org/entry/" + d.data.key
-                return
-              })
-              .attr("target", "_blank")
-              .attr("title", "Read about this Disorder on OMIM")
-            .append("text")
-              .attr("class", "matrix-row-text")
-              .attr("x", config.margin.left)
-              .attr("y", state.scale.y.bandwidth() / 2)
-              .text(function(d, i) {return d.data.getShortText(); })
-              .on("mouseover", function(d, i, j){
-                var Dispatcher = this.state.actionDispatcher
-                Dispatcher.toggleRow(d.x)
 
-                // var keyPool = d.data.link
-                // Dispatcher.toggleMultipleCol(keyPool) //TODO:
-                Dispatcher.updateInfoHeading(d.data.getKey())
-                Dispatcher.updateInfoSubHeading(d.data.getShortText())
-                Dispatcher.updateInfoDetailsList(d.data.symptom)
 
-              }.bind(this))
-              .on("mouseout", function(d){
-                var Dispatcher = this.state.actionDispatcher
-                Dispatcher.toggleRow(d.x)
+          state.rowHeadings.append("rect")
+            .attr("height", state.scale.y.bandwidth())
+            .attr("width", config.leftContainer.width)
+            .style("opacity", 0)
+            .style("fill", "#d1d1d1")
 
-                var keyPool = d.data.link
-                // Dispatcher.toggleMultipleCol(keyPool) //TODO
 
-              }.bind(this))
+          state.rowHeadings.append("text")
+            .attr("class", "matrix-row-text")
+            .attr("x", config.leftContainer.width)
+            .attr("y", state.scale.y.bandwidth() / 2)
+            .text(function(d, i) {return d.data.getShortText()})
+            .style("cursor", "pointer")
+            .style("alignment-baseline", "central")
+            .on("click", function(d, i, j){
 
+              var Dispatcher = this.state.actionDispatcher
+              Dispatcher.updateInfoBar(d)
+              Dispatcher.toggleRowHeadingUnderline(d.x)
+
+            }.bind(this))
+            .on("mouseover", function(d,i,j){
+
+              var Dispatcher = this.state.actionDispatcher
+              if(d.data.getText() !== d.data.getShortText()){
+                Dispatcher.showToolTip(j[i], d)
+              }
+              Dispatcher.toggleRow(d.x)
+
+              // var keyPool = d.data.link
+              // Dispatcher.toggleMultipleCol(keyPool) //TODO:
+
+            }.bind(this))
+            .on("mouseout", function(d, i, j){
+
+              var Dispatcher = this.state.actionDispatcher
+              Dispatcher.toggleRow(d.x)
+              Dispatcher.removeToolTip()
+
+              var keyPool = d.data.link
+              // Dispatcher.toggleMultipleCol(keyPool) //TODO
+
+            }.bind(this))
         },
 
         _createInfoBar: function(){
           var config = this.config
           var state = this.state
 
-          state.rightGroup
-            .append("p")
+          var headings = state.rightGroup
+            .append("div")
+              .attr("id", "InfoHeading")
+              .attr("width", config.rightContainer.width)
+              .attr("height", config.top)
+
+          headings.append("div")
               .attr("id", "DiagramInfoHeading")
 
-          state.rightGroup
-            .append("span")
+          headings.append("div")
               .attr("id", "DiagramInfoSubHeading")
 
           var infoDetails = state.rightGroup
             .append("div")
               .attr("id", "infoDetails")
+              .style("margin-top", config.top)
 
           infoDetails
             .append("table")
               .attr("id", "infoDetailsTable")
+              .style("overflow-y", "auto")
         },
 
-        // create matrix background
+        // create matrix components
         _createMatrix: function(){
           var state = this.state
           var config = this.config
           /**
            * COLUMNS
            */
+          console.log(state.scale.x.bandwidth());
 
           state.column = state.middleGroup.selectAll(".matrix-column")
               .data(state.matrix[0]) // first row
             .enter().append("g")
               .attr("class", "matrix-column")
-              .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})  //rotate(-45)
+              .attr("transform", function(d){return "translate("+ state.scale.x(d.data.text) + ")"})
 
 
           state.column
@@ -285,22 +411,25 @@ document.observe('xwiki:dom:loading', function() {
               .attr("fill", function(d){
                 return d.data.type && (config.color.default[d.data.type] || "lightgrey")
               })
-              .text(function(d) { return d.data.getText(); })
+              .text(function(d) { return d.data.getShortText(); })
               .on("mouseover", function(d, i, j){
+
                 var Dispatcher = this.state.actionDispatcher
                 Dispatcher.toggleColumn(d.y)
+                Dispatcher.showToolTip(j[i], d)
 
                 // d.data.key is the symptom
                 // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
-                Dispatcher.updateInfoHeading(d.data.getKey())
-                Dispatcher.updateInfoSubHeading(d.data.getText())
               }.bind(this))
               .on("mouseout", function(d, i, j){
+
                 var Dispatcher = this.state.actionDispatcher
                 Dispatcher.toggleColumn(d.y)
+                Dispatcher.removeToolTip()
 
                 var keyPool = d.data.link
                 // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
+
               }.bind(this))
 
           /**
@@ -318,7 +447,7 @@ document.observe('xwiki:dom:loading', function() {
             .append("rect")
               .attr("class", "matrix-row-background")
               .attr("x", 0)
-              .attr("width", config.scrollWidth)
+              .attr("width", config.middleContainer.scaleWidth)
               .attr("height", state.scale.y.bandwidth())
 
           /**
@@ -332,61 +461,34 @@ document.observe('xwiki:dom:loading', function() {
               .attr("transform", function(d) { return "translate(" + state.scale.x(d.data.text) + ",0)"; })
 
 
-          state.celltooltips = state.cellGroup
-            .append("g")
-              .attr("class", "matrix-cell-tooltip-group")
-              .attr("transform", "translate(" + state.scale.x.bandwidth() + "," + state.scale.y.bandwidth() + ")")
-
-          state.celltooltips.append("rect")
-              .attr("class", "matrix-cell-tooltip-background")
-              .attr("width", config.tooltips.width)
-              .attr("height", config.tooltips.height)
-
-          state.celltooltips.append("text")
-              .attr("class", "matrix-cell-tooltip-text")
-              .attr("text-anchor", "start")
-              .attr("dx", state.scale.x.bandwidth())
-              .attr("dy", state.scale.y.bandwidth())
-              .text(function(d){
-                return d.data.text
-              })
-
-
-          // state.cell = state.cellGroup.append('rect')
-          //     .attr("class", "matrix-cell")
-          //     .attr("x", 0)
-          //     .attr("width", state.scale.x.bandwidth())
-          //     .attr("height", state.scale.y.bandwidth())
-          //     .style("opacity", function(d) { return d.z === true ? 1 : 0})
-          //     .attr("fill", function(d){
-          //       return "#b4f0c9"
-          //     })
-
-
             state.cell = state.cellGroup.append('path')
               .attr("class", "matrix-cell")
-              .attr("transform", "translate(" + state.scale.x.bandwidth()/2 + ", "+ state.scale.y.bandwidth()/2 +")")
+              .attr("transform", "translate(" + state.scale.x.bandwidth()/2 + ", "+ state.scale.y.bandwidth()/2 +") rotate(45)")
               .style("opacity", function(d) { return d.z === true ? 1 : 0})
               .style("fill", function(d) {
                 if(d.data.category === "ancestor"){
                   return config.cellFillColor
+                } else if(d.data.category === "missmatch"){
+                  return config.cellMissMatchColor
+                }
+
+                return config.cellStrokeColor
+              })
+              .style("stroke", function(d){
+                if (d.data.category === "missmatch"){
+                  return config.cellMissMatchColor
                 }
                 return config.cellStrokeColor
               })
-              .style("stroke", config.cellStrokeColor)
               .style("stroke-width", state.scale.x.bandwidth()/4)
               .attr("d", d3.symbol()
-                .size([1/3 * config.cellWidth * config.cellWidth])
+                .size([1/4 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
                 .type(function(d){
-                  if(d.data.category === "match"){
-                    return d3.symbolCircle
-                  } else if(d.data.category === "missmatch"){
-                    return d3.symbolCross
-                  } else if(d.data.category === "ancestor"){
-                    return d3.symbolCircle
-                  } else
-                  return d3.symbolCircle
-                })
+
+                  var symbol = "symbol" + this.config.cellSymbol[d.data.category]
+                  return  d3[symbol] || d3.symbolCircle
+
+                }).bind(this)
               )
               .on("mouseover", function(d, i, j){
                 // d <==> current cell object {x,y,z}
@@ -408,9 +510,8 @@ document.observe('xwiki:dom:loading', function() {
                   var parentRow = this.state.selection.row(self.__data__.x).node()
                   Dispatcher.liftToTop(parentRow)
                   //necesasry?
-                  // Dispatcher.updateInfoSubHeading([d.data.getText(), matrix[d.x].data.getShortText()])
 
-                  // Dispatcher.toggleTooltip(self.previousSibling)
+                  // Dispatcher.currElem(self.previousSibling)
                 }
               }.bind(this)) // end mouseover
               .on("mouseout",  function(d, i, j){
@@ -422,13 +523,14 @@ document.observe('xwiki:dom:loading', function() {
 
                 if (self.__data__.z){
                   Dispatcher.sortRows()
-                  // Dispatcher.toggleTooltip(self.previousSibling)
+                  // Dispatcher.currElem(self.previousSibling)
                 }
               }.bind(this)) // end mouseout()
 
 
           } // end createMatrix
       }) // end class.create
+
 
 
 
@@ -452,31 +554,139 @@ document.observe('xwiki:dom:loading', function() {
           this.state = state
         },
 
-        updateInfoHeading: function(text){
-          d3.select("#DiagramInfoHeading").text(text)
+
+        updateInfoBar: function(d){
+
+          this.updateInfoHeading(d.data)
+          // this.updateInfoSubHeading(d.data.getText())
+
+          var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
+          this.updateInfoDetailsList(symptomList)
         },
 
-        updateInfoSubHeading: function(text){
-          if(Array.isArray(text)){
-            d3.select("#DiagramInfoSubHeading").text(text.join("\n"))
+        updateInfoHeading: function(d){
+          var omimID = d.getKey()
+          var omimText = d.getText()
+
+          var regex = /\d+/
+          var t = omimID.match(regex)
+
+          var infoHeading = d3.select("#DiagramInfoHeading")
+            .html("")
+
+          infoHeading.append("span")
+            .append("a")
+              .attr("target", "_blank")
+              .attr("href", "http://www.omim.org/")
+              .text("OMIM")
+
+          infoHeading.append("span")
+            .append("a")
+              .attr("target", "_blank")
+              .attr("href", "http://www.omim.org/entry/" + t)
+              .text(omimID)
+              .style("padding-left", "1em")
+
+          var text = omimText
+          if(Array.isArray(omimText)){
+              text = omimText.join("\n")
           }
-          d3.select("#DiagramInfoSubHeading").text(text)
+          var infoSubHeading = d3.select("#DiagramInfoSubHeading")
+              .text(text)
         },
-
 
 
         updateInfoDetailsList: function(symptom){
+          var config = this.config
+          var state = this.state
+
+          // sort symptom to lift those with match to top
+          symptom.sort(function(a,b){
+            if(a.matches && !b.matches){
+              return -1
+            } else if(!a.matches && b.matches){
+              return 1
+            } else {
+              return 0
+            }
+          })
+
+          // flatten the symptoms to fit in table rows
+          var expandedSymptoms = []
+
+          symptom.each(function(s){
+            expandedSymptoms.push(s)
+            if(s.matches && s.matches.length !== 0){
+              expandedSymptoms = expandedSymptoms.concat(s.matches)
+            }
+          })
+
           $("infoDetailsTable").removeAllChildElement()
-          d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
-              .data(symptom)
+          var tableCell = d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
+              .data(expandedSymptoms)
             .enter().append("tr")
               .attr("class", "infoDetailsTableItem")
-            .append("th")
-              .text(function(d){
-                return d.getText() + " => " + d.category
+            .append("td")
+              .style("color", function(d){
+                if(d.matches){
+                  return "#5c5c5c"
+                } else if (d.category === "ancestor" || d.category === "match"){
+                  return config.cellStrokeColor
+                } else if (d.category === "missmatch"){
+                  return config.cellMissMatchColor
+                }
               })
-        },
 
+
+          tableCell.append("span")
+            .filter(function(d){
+              return d.category
+            })
+            .attr("class", function(s){
+              if(s.category){
+                return "infoDetailsTableItemSymbol"
+              }
+            })
+            .append("svg")
+              .attr("width", state.scale.x.bandwidth()/1.5)
+              .attr("height", state.scale.y.bandwidth()/1.5)
+            .append("path")
+              .attr("transform", "translate(" + state.scale.x.bandwidth()/3 + ", "+ state.scale.y.bandwidth()/3 +") rotate(45)")
+              .attr("d", d3.symbol()
+                .size([1/7 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+                .type(function(d){
+                  var symbol = "symbol" + config.cellSymbol[d.category]
+                  return  d3[symbol] || d3.symbolCircle
+                }).bind(this)
+              )
+              .style("fill", function(d) {
+                if(d.category === "ancestor"){
+                  return config.cellFillColor
+                } else if(d.category === "missmatch"){
+                  return config.cellMissMatchColor
+                }
+                return config.cellStrokeColor
+              })
+              .style("stroke", function(d){
+                if (d.category === "missmatch"){
+                  return config.cellMissMatchColor
+                }
+                return config.cellStrokeColor
+              })
+              .style("stroke-width", state.scale.x.bandwidth()/8)
+
+
+          tableCell.append("span")
+              .attr("class", function(s){
+                if(s.category){
+                  return "infoDetailsTableItemText"
+                }
+              })
+              .text(function(s){
+                return s.getText()
+              })
+
+        },
         liftToTop: function(elem){
           var plane = elem.parentNode
           plane.appendChild(elem)
@@ -489,18 +699,37 @@ document.observe('xwiki:dom:loading', function() {
         },
 
         toggleRow: function(rowNum){
+          this.toggleRowHeading(rowNum)
+          this.toggleRowBackground(rowNum)
+        },
+
+        toggleRowHeading: function(rowNum){
           // highlight row text
           d3.selectAll(".matrix-row")
             .filter(function(d, i){ return rowNum === i})
             .classed("row-active", function(d, i) {
             return !d3.select(this).classed("row-active")
           })
+        },
+
+        toggleRowBackground: function(rowNum){
           // highlight background
           d3.selectAll(".matrix-row-background")
             .filter(function(d){ return rowNum === d.x})
             .classed("row-background-active", function(d, i){
             return !d3.select(this).classed("row-background-active")
           })
+        },
+
+        toggleRowHeadingUnderline: function(rowNum){
+          d3.selectAll(".matrix-row-text")
+            .filter(function(d){ return rowNum !== d.x})
+            .attr("text-decoration", "none")
+
+          d3.selectAll(".matrix-row-text")
+            .filter(function(d){ return rowNum === d.x})
+            .attr("text-decoration", "underline")
+            .style("text-decoration-color", this.config.cellStrokeColor)
         },
 
 
@@ -553,9 +782,49 @@ document.observe('xwiki:dom:loading', function() {
           })
         },
 
-        toggleTooltip: function(selection){
-          var tooltipSelection = d3.select(selection)
-          tooltipSelection.classed("tooltips-active", !tooltipSelection.classed("tooltips-active"))
+        showToolTip: function(currElem, d){
+          var config = this.config
+          var state = this.state
+
+          var matrix = currElem.getScreenCTM()
+                .translate(+ currElem.getAttribute("cx"), + currElem.getAttribute("cy"))
+
+          var isDisorder = d.data.hasOwnProperty("symptom")
+          var isNotSymptom = d.data.hasOwnProperty("type") && (d.data.type === "not_symptom")
+
+          var textAlignDirection = isDisorder ? "text-align-right" : "text-align-left"
+          var topShiftAddition = isDisorder ? state.scale.y.bandwidth() : 0
+          var tooltipWidth = isDisorder ? config.tooltip.width + "px"  : "auto"
+          var hoverTextColor = isNotSymptom ? config.color.default.not_symptom : config.termHoverHighlightColor
+
+          state.tooltip
+            .html(function(){
+              var title = "<div id='tooltipTitle' class=" + textAlignDirection + ">" + d.data.getText() + "</div>"
+              return title
+            })
+            .transition()
+            .delay(10)
+            .style("left", 0)
+            .style("opacity", 1)
+            .style("left", (matrix.e) + "px")
+            .style("top", (matrix.f + topShiftAddition) + "px")
+            .style("color", hoverTextColor)
+            .style("width", tooltipWidth)
+
+        },
+
+        mouseOverTracking: function(){
+          this.state.tooltip
+           .style("left", Math.max(0, d3.event.pageX - this.config.tooltip.width/2) + "px")
+           .style("top", (d3.event.pageY - this.state.scale.x.bandwidth() * 3) + "px");
+        },
+
+        removeToolTip: function(){
+          this.state.tooltip
+            .html("")
+            .transition()
+            .delay(10)
+            .style("opacity", 0)
         },
 
         // re-sort .matrix-row to restore rect element order
@@ -589,9 +858,6 @@ document.observe('xwiki:dom:loading', function() {
         initialize: function(key, text){
           this.key = key
           this.text = this.capitalizeEveryWord(text)
-
-
-
           // this.link = link // type [String]
           // this.linkContent = new Array() // [term]
         },
@@ -617,14 +883,6 @@ document.observe('xwiki:dom:loading', function() {
           return this.key === k
         },
 
-        // populateWith: function(otherTerm){
-        //   // @param otherTerm: array of term object to choose from
-        //   this.link.each(function(l){
-        //     var filtered = otherTerm.filter(function(s){ return s.key === l })
-        //     this.linkContent = this.linkContent.concat(filtered)
-        //   }, this)
-        // },
-
         getKey: function(){
           return this.key
         },
@@ -635,7 +893,7 @@ document.observe('xwiki:dom:loading', function() {
 
         equalTo: function(t){
           return this.key === t.key && this.text === t.text && typeof this === typeof t
-        },
+        }
 
       })
 
@@ -646,6 +904,20 @@ document.observe('xwiki:dom:loading', function() {
           $super(key, text)
           this.category = category
           this.type = type
+        },
+
+        calculatePrevalence: function(){
+          var mapping = {
+            'match': 10,
+            'ancestor': 1,
+            'unknown': 0,
+            'missmatch': -1
+          }
+          if (this.key in Symptom.prevalence){
+            Symptom.prevalence[this.key] += mapping[this.category]
+          } else {
+            Symptom.prevalence[this.key] = 0
+          }
         },
 
         // set type to symptom or not_symptom or free_symptom
@@ -666,10 +938,22 @@ document.observe('xwiki:dom:loading', function() {
         },
 
         getText: function(){
+          var symText = this.text
           if(this.type === "not_symptom"){
-            return "NO " + this.text
+            symText = "NO " + symText
           }
-          return this.text
+          return symText
+
+        },
+
+        getShortText: function(){
+          var symText = this.getText()
+
+          var cutoff = 25
+          if(symText.length > cutoff){
+            symText = symText.slice(0, cutoff) + " ..."
+          }
+          return symText
         },
 
         toString: function($super){
@@ -680,7 +964,7 @@ document.observe('xwiki:dom:loading', function() {
           return $super(s) && this.type === s.type && this.category === s.category
         },
 
-        greaterOrEqualTo: function(s){
+        greaterThan: function(s){
           var rule = ['missmatch' ,'unknown', 'ancestor', 'match']
 
           if(!this.equalTo(s)){
@@ -688,28 +972,40 @@ document.observe('xwiki:dom:loading', function() {
             var other = rule.indexOf(s.category)
 
             if(self === -1 || other === -1){
-              console.log("symptoms in comparison does not have property category");
+              console.log("symptoms in comparison does not have appropriate category");
               return
             }
 
-            if(self === 1 && other !== 1){
-              return false
+            // self is greaterThan other:
+            // if self is not unknown while other is unknown
+            if(self !== 1 && other === 1){
+              return true
             }
-            if(self === 2 && other === 3){
-              return false
+
+            // if self is match and other is ancestor
+            if(self === 3 && other === 2){
+              return true
+            }
+
+            // if self is a missmatch and other is an ancestor
+            if(self === 0 && other === 1){
+              return true
             }
 
             if((self === 0 && other > 1) || (self > 1 && other === 0)){
               console.log("symptoms in comparison is both a missmatch and ancestor/match");
+              console.log("user may have selected a parent symptom as not present and a descendent symptom as present");
               return
             }
 
-            return  true
+            return  false
           } else {
+            // two symptoms are equal in their attributes
             return true
           }
         }
       })
+
 
 
       var Disorder = Class.create(Term, {
@@ -717,6 +1013,7 @@ document.observe('xwiki:dom:loading', function() {
         initialize: function($super, key, text, symptom){
           $super(key, text)
           this.symptom = symptom
+
         },
 
         getKey: function(){
@@ -725,14 +1022,24 @@ document.observe('xwiki:dom:loading', function() {
             return a[0]
           }
         },
-        // get text without the key at the front
-        getShortText: function(){
-          var a = this.text.split(/[ ,]+/)
 
+        getText: function(){
+          var a = this.text.split(/[ ,]+/)
           if(a[1]){
             return a.slice(1).join(" ")
           }
           return
+        },
+
+        // get text without the key at the front
+        getShortText: function(){
+          var disText = this.getText()
+
+          var cutoff = 28
+          if(disText.length > cutoff){
+            disText = disText.slice(0, cutoff) + " ..."
+          }
+          return disText
         }
       })
 
@@ -757,47 +1064,119 @@ document.observe('xwiki:dom:loading', function() {
        */
 
       var dataHandler = Class.create({
-        initialize: function(inputData, config, state){
+        initialize: function(data, config, state){
           this.config = config
           this.state = state
 
-          this.inputData = inputData
-          this.procData = this.preProcess(this.inputData)
-          this.completeData = JSON.parse(JSON.stringify(this.procData))
-          // this.popData = this.populateLinkContent(this.procData)
+
+          this.completeData = this.convertToObject(data)
+          this.extractMatchesData = this.mergeMatchingSymptoms(data)
+          this.procData = this.preProcess(this.extractMatchesData)
           this.matrix = this.toMatrix(this.procData)
+
         },
 
+
         //utility for sorting symptoms
-        setUpOrderingBySelection: function(data, selectionFirst){
+        setUpOrderingBySelection: function(data){
           var config = this.config
 
           data.each(function(d){
+            // alphabetical order for the moment
             d.symptom.sort(function(a,b){
-              var a = a.text.toLowerCase();
-              var b = b.text.toLowerCase();
+              var aPreva = Symptom.prevalence[a.key]
+              var bPreva = Symptom.prevalence[b.key]
 
-              if (a < b){
+              if (aPreva > bPreva){
                  return -1;
-              } else if (a > b){
+              } else if (aPreva < bPreva){
                 return  1;
               } else{
-                return 0;
+                // prevalence score equal now sort by alphabet
+                var aAlpha = a.text.toLowerCase()
+                var bAlpha = b.text.toLowerCase()
+                if(aAlpha > bAlpha){
+                  return -1
+                } else if (aAlpha < bAlpha){
+                  return 1
+                } else {
+                  return 0
+                }
               }
             })
           })
         },
 
-        populateLinkContent: function(data){
-          data.disorder.each(function(d){
-            d.populateWith(data.symptom)
+        getSymptomList: function(disKey){
+
+          var disorder = this.completeData.filter(function(d){
+            if(d.key === disKey){
+              return true
+            }
+            return false
           })
-          return data
+
+          if(disorder[0] && disorder[0].symptom){
+            return disorder[0].symptom
+          } else {
+            return "undefined"
+          }
+
         },
 
+        convertToObject: function(data){
+
+          var clientSelectedSymptom = this.state.outsideCache.all
+          var res = []
+
+          data.each(function(d){
+            var syms = []
+            d.symptom.each(function(s){
+              var sym = new Symptom(s.key, s.text)
+              var matches = []
+
+              // if symptom has a matching phenotype...
+              if (s.matches && s.matches.length !== 0){
+                // cast matching phenotypes to Symptom objects
+                var matchObj = s.matches.map(function(m){
+                  var phenotype = new Symptom(m.key, m.text, m.type, m.category)
+
+                  // update disabled property from cache object
+                  if(clientSelectedSymptom.hasOwnProperty(phenotype.key)){
+                    clientSelectedSymptom[phenotype.key].disabled && phenotype.setDisabled(clientSelectedSymptom[phenotype.key].disabled)
+                  }
+                  return phenotype
+                })
+                // put matching phenotype to symptom...
+                sym.matches = matchObj
+              }
+              syms.push(sym)
+            })
+            res.push(new Disorder(d.key, d.text, syms))
+          })
+
+          return res
+        },
+
+        mergeMatchingSymptoms: function(data){
+          var res = JSON.parse(JSON.stringify(data)) // deep clone does not preserve type
+
+          res.each(function(d){
+            var matches = []
+
+            d.symptom.each(function(s){
+              var matchingSymptoms = s.matches
+              if(matchingSymptoms && matchingSymptoms.length !== 0){
+                matches = matches.concat(matchingSymptoms)
+              }
+            })
+            d.symptom = matches
+          })
+          return res
+        },
 
         //preprocess data into correct data structure
-        preProcess: function(inputData){
+        preProcess: function(data){
           var config = this.config
           var state = this.state
 
@@ -806,12 +1185,16 @@ document.observe('xwiki:dom:loading', function() {
 
           outputData = []
 
+          // initialize static variable for ordering columns
+          Symptom.prevalence = {}
+
           // logically aggregate symptom
-          inputData.each(function(d){
+          data.each(function(d){
             if(d.symptom.length === 0){return}
             // construct symptom objects
             var original = d.symptom.map(function(s){
-              sym = new Symptom(s.key, s.text, s.type, s.category)
+              var sym = new Symptom(s.key, s.text, s.type, s.category)
+              sym.calculatePrevalence()
               if(clientSelectedSymptom.hasOwnProperty(sym.key)){
                 clientSelectedSymptom[s.key].disabled && sym.setDisabled(clientSelectedSymptom[s.key].disabled)
               }
@@ -822,22 +1205,31 @@ document.observe('xwiki:dom:loading', function() {
             console.log("DISORDER: " + d.key);
 
             var nonDuplicates = []
-            var first = original.pop()
-            console.log("PUSHED: " + first.toString());
-            nonDuplicates.push(first)
+            // adding user-selected phenotype that did not match anything to the array
+            var nonDuplicates = Object.keys(clientSelectedSymptom).map(function(k){
+              var s = clientSelectedSymptom[k]
+              var sym = new Symptom(s.key, s.text, s.type, "unknown")
+              sym.calculatePrevalence()
+              if(clientSelectedSymptom.hasOwnProperty(sym.key)){
+                clientSelectedSymptom[s.key].disabled && sym.setDisabled(clientSelectedSymptom[s.key].disabled)
+              }
+              return sym
+            })
 
             while(original.length !== 0){
               var next = original.pop()
               var pushAgain = true
 
               for(i=0; i<nonDuplicates.length; i++){
-                curr = nonDuplicates[i]
-                if(next.key === curr.key){
+                within = nonDuplicates[i]
+                if(next.key === within.key){
                   pushAgain = false
-                  if(!curr.greaterOrEqualTo(next)){
-                    console.log('REPLACE: ' + curr.toString() + " => " + next.toString());
+                  if(next.greaterThan(within)){
+                    console.log('REPLACE: ' + within.toString() + " => " + next.toString());
                     nonDuplicates[i] = next
                     break
+                  } else {
+                    console.log('DO NOTHING: ' + within.toString());
                   }
                 }
               }
@@ -847,6 +1239,7 @@ document.observe('xwiki:dom:loading', function() {
                 nonDuplicates.push(next)
               }
             }
+
             d.symptom = nonDuplicates
             outputData.push(new Disorder(d.key, d.text, d.symptom))
 
@@ -858,7 +1251,7 @@ document.observe('xwiki:dom:loading', function() {
         toMatrix: function(data){
 
           // ordering of raw data
-          this.setUpOrderingBySelection(data, true)
+          this.setUpOrderingBySelection(data)
 
           // populate matrix
           var matrix = new Matrix()

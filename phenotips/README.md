@@ -75,7 +75,7 @@ __FAQ__
 [An explanation on dependency injection](http://www.javaworld.com/article/2071914/excellent-explanation-of-dependency-injection--inversion-of-control-.html) and [beginner's guide](http://www.theserverside.com/news/1321158/A-beginners-guide-to-Dependency-Injection)  
 [How to write XWiki Component](http://platform.xwiki.org/xwiki/bin/view/DevGuide/WritingComponents)   
 [XWiki scripting module](http://extensions.xwiki.org/xwiki/bin/view/Extension/Script+Module)  
-[How to return JSON from Velocity](http://snippets.xwiki.org/xwiki/bin/view/Extension/Output+JSON) 
+[How to return JSON from Velocity](http://snippets.xwiki.org/xwiki/bin/view/Extension/Output+JSON)
 
 
 

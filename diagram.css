@@ -67,7 +67,7 @@
 
 
 .row-active > text {
-  fill: #39aac7;
+  fill: #0090b0;
 }
 
 .column-active > text {
@@ -76,7 +76,7 @@
 
 
 .matrix-cell-tooltip-group {
-  opacity: 0
+  opacity: 0;
 }
 
 .matrix-cell-tooltip-background {
@@ -88,13 +88,20 @@
 #DiagramInfoHeading {
   font-size: 14px;
   color: #000000;
-  margin-bottom: 5px;
+  background-color: #e5eff2;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  padding: 0.3em;
 }
 
-#DiagramInfoSubHeading {
-  font-size: 23px;
-  color: #4b4b4b;
+#DiagramInfoHeadingMain {
+  font-size: 20px;
+  color: #ffffff;
+  padding: 0.5em;
+  background-color: #70afe9;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  text-align: center;
 }
+
 
 #infoDetailsTable {
   text-align: left;
@@ -128,6 +135,23 @@
 }
 
 
-#InfoHeading {
-  padding-bottom: 2em;
+.instantSeartchLink{
+  padding-left: initial !important;
+  text-decoration: none;
+}
+
+
+#notPhenotypicAbnormalityBlock{
+  margin-bottom: 0.5em;
+  background-color: #e5eff2;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  text-align: center;
+  padding: 0.3em;
+}
+
+.phenotypeButton{
+}
+
+.phenotypeButton:active{
+  background-color:#ffffff;
 }

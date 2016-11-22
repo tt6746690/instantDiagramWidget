@@ -43,9 +43,6 @@
 
 
 
-
-
-
     #set($results = $services.diagnosis.get($symptoms, $freeSymptoms, $limit))
     #if ($results.size() > 0)
 
@@ -56,8 +53,13 @@
         #set($s = [])
         #foreach ($hpoTermString in $mimTerm.get("actual_symptom"))
           #set($hpoTerm = $services.vocabularies.resolveTerm($hpoTermString))
-          #set($phenotype = {'key' : $hpoTerm.id , 'text' : $hpoTerm.name, 'matches': []} )
-          ###set($discard = $s.add($phenotype))
+          #set($phenotype = {'key' : $hpoTerm.id , 'text' : $hpoTerm.name, 'matches': [], 'isPhenotypicAbnormality': true})
+
+
+          #set($phenotypicAbormality = $services.vocabularies.resolveTerm("HP:0000118"))
+          #if(!$hpoTerm.ancestors.contains($phenotypicAbormality))
+            #set($phenotype.isPhenotypicAbnormality = false)
+          #end
 
           ## store ancestors of currrent phenotype
           #set($hpoAncestors = [])

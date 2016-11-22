@@ -26,7 +26,7 @@ var Diagram = Class.create({
   // internal configs
   internalConfig: {
     top: 150,
-    height: 450,
+    height: 460,    // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
     totalHeight: 0, // height + top = 700
     leftContainer: {
       width: 270
@@ -47,7 +47,7 @@ var Diagram = Class.create({
         free_symptom: "#878787"
       },
       highlight: {
-        symptom: "#39aac7",
+        symptom: "#004b5e",
         not_symptom: "red",
         free_symptom: "#878787"
       }
@@ -139,6 +139,7 @@ var Diagram = Class.create({
   draw: function(){
 
     this._createSVGContainers()
+    this._createCellFilter()
     this._createLegend()
     this._createRowHeadings()
     this._createMatrix()
@@ -188,6 +189,7 @@ var Diagram = Class.create({
       .style("position", "fixed")
       .style("background", config.tooltip.backgroundColor)   // same as row highlight color
       .style("font-weight", "bold")
+      .style("box-shadow", "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)")
 
     state.leftContainer = rootDiv
       .append("div")
@@ -240,6 +242,37 @@ var Diagram = Class.create({
       .append("div")
         .style("height", config.height + "px")
 
+  },
+
+  _createCellFilter(){
+
+    // source: http://bl.ocks.org/cpbotha/5200394
+
+    var defs = d3.select("#middleSVG").append("defs");
+
+    var filter = defs.append("filter")
+        .attr("transform", "translate(0, 11)")
+        .attr("id", "drop-shadow")
+        .attr("height", "300%")
+        .attr("width", "300%")
+        .attr("x", -1)
+        .attr("y", -1)
+
+    filter.append("feOffset")
+        .attr("in", "SourceGraphic")
+        .attr("dx", 2)
+        .attr("dy", 2)
+        .attr("result", "offOut");
+
+
+    filter.append("feGaussianBlur")
+        .attr("in", "offOut")
+        .attr("stdDeviation", 5)
+        .attr("result", "blurOut");
+    filter.append("feBlend")
+        .attr("in","SourceGraphic")
+        .attr("in2", "blurOut")
+        .attr("mode", "normal")
   },
 
   _createLegend: function(){
@@ -330,8 +363,7 @@ var Diagram = Class.create({
         }
         Dispatcher.toggleRow(d.x)
 
-        // var keyPool = d.data.link
-        // Dispatcher.toggleMultipleCol(keyPool) //TODO:
+        Dispatcher.toggleMultipleCol(d.data.symptom) // an array of symptoms
 
       }.bind(this))
       .on("mouseout", function(d, i, j){
@@ -340,8 +372,7 @@ var Diagram = Class.create({
         Dispatcher.toggleRow(d.x)
         Dispatcher.removeToolTip()
 
-        var keyPool = d.data.link
-        // Dispatcher.toggleMultipleCol(keyPool) //TODO
+        Dispatcher.toggleMultipleCol(d.data.symptom)
 
       }.bind(this))
   },
@@ -360,7 +391,10 @@ var Diagram = Class.create({
         .attr("id", "DiagramInfoHeading")
 
     headings.append("div")
-        .attr("id", "DiagramInfoSubHeading")
+        .attr("id", "DiagramInfoHeadingMain")
+
+    headings.append("div")
+        .attr("id", "notPhenotypicAbnormalityBlock")
 
     var infoDetails = state.rightGroup
       .append("div")
@@ -370,6 +404,7 @@ var Diagram = Class.create({
     infoDetails
       .append("table")
         .attr("id", "infoDetailsTable")
+        .attr("width", config.rightContainer.width)
         .style("overflow-y", "auto")
   },
 
@@ -380,7 +415,6 @@ var Diagram = Class.create({
     /**
      * COLUMNS
      */
-    console.log(state.scale.x.bandwidth());
 
     state.column = state.middleGroup.selectAll(".matrix-column")
         .data(state.matrix[0]) // first row
@@ -413,8 +447,8 @@ var Diagram = Class.create({
           Dispatcher.toggleColumn(d.y)
           Dispatcher.showToolTip(j[i], d)
 
-          // d.data.key is the symptom
-          // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
+          // d.data.key is the symptom HP:123455...
+          Dispatcher.toggleMultipleRow(d.data.key)
         }.bind(this))
         .on("mouseout", function(d, i, j){
 
@@ -422,8 +456,7 @@ var Diagram = Class.create({
           Dispatcher.toggleColumn(d.y)
           Dispatcher.removeToolTip()
 
-          var keyPool = d.data.link
-          // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
+          Dispatcher.toggleMultipleRow(d.data.key)
 
         }.bind(this))
 
@@ -435,7 +468,7 @@ var Diagram = Class.create({
         .data(state.matrix)
       .enter().append("g")
         .attr("class", "matrix-row")
-        .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
+        .attr("transform", function(d) {return "translate(0," + state.scale.y(d.data.text) + ")"; })
 
 
     state.row
@@ -499,15 +532,6 @@ var Diagram = Class.create({
           Dispatcher.toggleRow(self.__data__.x)
           Dispatcher.toggleColumn(self.__data__.y)
 
-          // tooltips popup for cell with value in z
-          if (self.__data__.z){
-            // list parentRow to top so that tooltip displays properly
-            var parentRow = this.state.selection.row(self.__data__.x).node()
-            Dispatcher.liftToTop(parentRow)
-            //necesasry?
-
-            // Dispatcher.currElem(self.previousSibling)
-          }
         }.bind(this)) // end mouseover
         .on("mouseout",  function(d, i, j){
           var self = j[i]
@@ -516,10 +540,6 @@ var Diagram = Class.create({
           Dispatcher.toggleRow(self.__data__.x)
           Dispatcher.toggleColumn(self.__data__.y)
 
-          if (self.__data__.z){
-            Dispatcher.sortRows()
-            // Dispatcher.currElem(self.previousSibling)
-          }
         }.bind(this)) // end mouseout()
 
 

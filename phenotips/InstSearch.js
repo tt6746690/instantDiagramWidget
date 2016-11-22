@@ -11,6 +11,9 @@ document.observe('xwiki:dom:loading', function() {
 
         initialize: function(domElt, data, options){
 
+          console.log(JSON.stringify(data));
+          console.log(JSON.stringify(cache));
+
           this.config = this._resolveConfig(options, domElt)
 
           this.state = {}
@@ -52,7 +55,7 @@ document.observe('xwiki:dom:loading', function() {
               free_symptom: "#878787"
             },
             highlight: {
-              symptom: "#39aac7",
+              symptom: "#004b5e",
               not_symptom: "red",
               free_symptom: "#878787"
             }
@@ -335,8 +338,7 @@ document.observe('xwiki:dom:loading', function() {
               }
               Dispatcher.toggleRow(d.x)
 
-              // var keyPool = d.data.link
-              // Dispatcher.toggleMultipleCol(keyPool) //TODO:
+              Dispatcher.toggleMultipleCol(d.data.symptom) // an array of symptoms
 
             }.bind(this))
             .on("mouseout", function(d, i, j){
@@ -345,8 +347,7 @@ document.observe('xwiki:dom:loading', function() {
               Dispatcher.toggleRow(d.x)
               Dispatcher.removeToolTip()
 
-              var keyPool = d.data.link
-              // Dispatcher.toggleMultipleCol(keyPool) //TODO
+              Dispatcher.toggleMultipleCol(d.data.symptom)
 
             }.bind(this))
         },
@@ -365,7 +366,7 @@ document.observe('xwiki:dom:loading', function() {
               .attr("id", "DiagramInfoHeading")
 
           headings.append("div")
-              .attr("id", "DiagramInfoSubHeading")
+              .attr("id", "DiagramInfoHeadingMain")
 
           var infoDetails = state.rightGroup
             .append("div")
@@ -418,8 +419,8 @@ document.observe('xwiki:dom:loading', function() {
                 Dispatcher.toggleColumn(d.y)
                 Dispatcher.showToolTip(j[i], d)
 
-                // d.data.key is the symptom
-                // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
+                // d.data.key is the symptom HP:123455...
+                Dispatcher.toggleMultipleRow(d.data.key)
               }.bind(this))
               .on("mouseout", function(d, i, j){
 
@@ -427,8 +428,7 @@ document.observe('xwiki:dom:loading', function() {
                 Dispatcher.toggleColumn(d.y)
                 Dispatcher.removeToolTip()
 
-                var keyPool = d.data.link
-                // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
+                Dispatcher.toggleMultipleRow(d.data.key)
 
               }.bind(this))
 
@@ -504,15 +504,6 @@ document.observe('xwiki:dom:loading', function() {
                 Dispatcher.toggleRow(self.__data__.x)
                 Dispatcher.toggleColumn(self.__data__.y)
 
-                // tooltips popup for cell with value in z
-                if (self.__data__.z){
-                  // list parentRow to top so that tooltip displays properly
-                  var parentRow = this.state.selection.row(self.__data__.x).node()
-                  Dispatcher.liftToTop(parentRow)
-                  //necesasry?
-
-                  // Dispatcher.currElem(self.previousSibling)
-                }
               }.bind(this)) // end mouseover
               .on("mouseout",  function(d, i, j){
                 var self = j[i]
@@ -521,16 +512,11 @@ document.observe('xwiki:dom:loading', function() {
                 Dispatcher.toggleRow(self.__data__.x)
                 Dispatcher.toggleColumn(self.__data__.y)
 
-                if (self.__data__.z){
-                  Dispatcher.sortRows()
-                  // Dispatcher.currElem(self.previousSibling)
-                }
               }.bind(this)) // end mouseout()
 
 
           } // end createMatrix
       }) // end class.create
-
 
 
 
@@ -591,7 +577,7 @@ document.observe('xwiki:dom:loading', function() {
           if(Array.isArray(omimText)){
               text = omimText.join("\n")
           }
-          var infoSubHeading = d3.select("#DiagramInfoSubHeading")
+          var infoSubHeading = d3.select("#DiagramInfoHeadingMain")
               .text(text)
         },
 
@@ -733,22 +719,29 @@ document.observe('xwiki:dom:loading', function() {
         },
 
 
-        toggleMultipleRow: function(keyPool){
+        toggleMultipleRow: function(symptomKey){
+          var self = this
+
           d3.selectAll(".matrix-row").each(function(d, i){
             var elm = d3.select(this)
             var elmBackground = d3.select(elm.node().firstChild)
-            if (keyPool.indexOf(d.data.key) !== -1){
-              elm.classed("row-active", !elm.classed("row-active"))
-              elmBackground.classed("row-background-active", !elmBackground.classed("row-background-active"))
+
+            var symtomList = d.data.symptom
+            var index = symtomList.map(function(s){return s.key}).indexOf(symptomKey)
+
+            if (index !== -1 && symtomList[index].category !== 'unknown'){
+              self.toggleRow(i)
             }
           })
         },
 
         toggleColumn: function(colNum){
+
           var col = d3.selectAll(".matrix-column")
-            .filter(function(d, i){return colNum === i})
+            .filter(function(d, i){return colNum === i })
             .classed("column-active", function(d){
-              return !d3.select(this).classed("column-active")
+              return !d3.select(this)
+                        .classed("column-active")
             })
           this.toggleColText(col.node().getElementsByClassName("matrix-column-text")[0])
         },
@@ -767,17 +760,19 @@ document.observe('xwiki:dom:loading', function() {
           })
         },
 
-        toggleMultipleCol: function(keyPool){
+        toggleMultipleCol: function(symptomList){
           var self = this
           var config = this.config
-          console.log(keyPool);
+          // var symptomKeyList = symptomList.map(function(s){return s.key})
 
           d3.selectAll(".matrix-column").each(function(c, j){
             var elm = d3.select(this)
             var elmText = elm.node().getElementsByClassName("matrix-column-text")[0]
-            if (keyPool.indexOf(c.data.key) !== -1){
-              elm.classed("column-active", !elm.classed("column-active"))
-              self.toggleColText(elmText)
+
+            var matchedSymptomKeyList = symptomList.filter(function(s){return s.category !== "unknown"}).map(function(s){return s.key})
+
+            if (matchedSymptomKeyList.indexOf(c.data.key) !== -1){
+              self.toggleColumn(j)
             }
           })
         },
@@ -858,8 +853,6 @@ document.observe('xwiki:dom:loading', function() {
         initialize: function(key, text){
           this.key = key
           this.text = this.capitalizeEveryWord(text)
-          // this.link = link // type [String]
-          // this.linkContent = new Array() // [term]
         },
 
         capitalizeEveryWord: function(text){
@@ -1003,7 +996,8 @@ document.observe('xwiki:dom:loading', function() {
             // two symptoms are equal in their attributes
             return true
           }
-        }
+        },
+
       })
 
 
@@ -1078,7 +1072,7 @@ document.observe('xwiki:dom:loading', function() {
 
 
         //utility for sorting symptoms
-        setUpOrderingBySelection: function(data){
+        setUpOrdering: function(data){
           var config = this.config
 
           data.each(function(d){
@@ -1158,8 +1152,11 @@ document.observe('xwiki:dom:loading', function() {
           return res
         },
 
+        /*
+        puts matching symptom directly under Disorder.symptom
+        */
         mergeMatchingSymptoms: function(data){
-          var res = JSON.parse(JSON.stringify(data)) // deep clone does not preserve type
+          var res = JSON.parse(JSON.stringify(data))
 
           res.each(function(d){
             var matches = []
@@ -1251,7 +1248,7 @@ document.observe('xwiki:dom:loading', function() {
         toMatrix: function(data){
 
           // ordering of raw data
-          this.setUpOrderingBySelection(data)
+          this.setUpOrdering(data)
 
           // populate matrix
           var matrix = new Matrix()
@@ -1292,6 +1289,7 @@ document.observe('xwiki:dom:loading', function() {
         }
 
       }) // end dataHandler class
+
 
         // instantiation
         var d = new Diagram(

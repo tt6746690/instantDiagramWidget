@@ -26,7 +26,30 @@ var actionDispatcher = Class.create({
     // this.updateInfoSubHeading(d.data.getText())
 
     var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
-    this.updateInfoDetailsList(symptomList)
+
+    // filters out non-phenotypic abnormalities
+    var phenotypicAbnormality = symptomList.filter(function(s){
+      return s.isPhenotypicAbnormality
+    })
+    this.updateInfoDetailsList(phenotypicAbnormality)
+
+    // filters out phenotypic abnormalities
+    var nonphenotypicAbnormality = symptomList.filter(function(s){
+      return !s.isPhenotypicAbnormality
+    })
+    this.updateNonPhenotypicAbnormalityBlock(nonphenotypicAbnormality)
+  },
+
+  updateNonPhenotypicAbnormalityBlock: function(nonphenotypicAbnormality){
+      $("notPhenotypicAbnormalityBlock").removeAllChildElement()
+      var block = d3.select("#notPhenotypicAbnormalityBlock")
+        .selectAll(".nonPhenotypes")
+          .data(nonphenotypicAbnormality)
+        .enter().append("button")
+          .attr("class", "phenotypeButton")
+          .html(function(d){
+            return d.text
+          })
   },
 
   updateInfoHeading: function(d){
@@ -39,24 +62,30 @@ var actionDispatcher = Class.create({
     var infoHeading = d3.select("#DiagramInfoHeading")
       .html("")
 
-    infoHeading.append("span")
+    infoHeading.append("button")
+      .attr("class", "omimLinkButton")
       .append("a")
+        .attr("class", "instantSeartchLink")
         .attr("target", "_blank")
         .attr("href", "http://www.omim.org/")
         .text("OMIM")
+        .style("color", "#505050")
 
-    infoHeading.append("span")
+    infoHeading.append("button")
+      .attr("class", "omimLinkButton")
       .append("a")
+        .attr("class", "instantSeartchLink")
         .attr("target", "_blank")
         .attr("href", "http://www.omim.org/entry/" + t)
         .text(omimID)
         .style("padding-left", "1em")
+        .style("color", "#505050")
 
     var text = omimText
     if(Array.isArray(omimText)){
         text = omimText.join("\n")
     }
-    var infoSubHeading = d3.select("#DiagramInfoSubHeading")
+    var infoSubHeading = d3.select("#DiagramInfoHeadingMain")
         .text(text)
   },
 
@@ -92,6 +121,7 @@ var actionDispatcher = Class.create({
       .enter().append("tr")
         .attr("class", "infoDetailsTableItem")
       .append("td")
+        .style("width", config.rightContainer.width)
         .style("color", function(d){
           if(d.matches){
             return "#5c5c5c"
@@ -161,6 +191,11 @@ var actionDispatcher = Class.create({
     // change cell color by css class
     var cellSelection = d3.select(selection)
     cellSelection.classed("cell-mouse-over", !cellSelection.classed("cell-mouse-over"))
+
+    // apply filters
+    var filter = (cellSelection.attr("filter") === "url(#drop-shadow)" ? null : "url(#drop-shadow)")
+    cellSelection.attr("filter", filter)
+
   },
 
   toggleRow: function(rowNum){
@@ -198,22 +233,29 @@ var actionDispatcher = Class.create({
   },
 
 
-  toggleMultipleRow: function(keyPool){
+  toggleMultipleRow: function(symptomKey){
+    var self = this
+
     d3.selectAll(".matrix-row").each(function(d, i){
       var elm = d3.select(this)
       var elmBackground = d3.select(elm.node().firstChild)
-      if (keyPool.indexOf(d.data.key) !== -1){
-        elm.classed("row-active", !elm.classed("row-active"))
-        elmBackground.classed("row-background-active", !elmBackground.classed("row-background-active"))
+
+      var symtomList = d.data.symptom
+      var index = symtomList.map(function(s){return s.key}).indexOf(symptomKey)
+
+      if (index !== -1 && symtomList[index].category !== 'unknown'){
+        self.toggleRow(i)
       }
     })
   },
 
   toggleColumn: function(colNum){
+
     var col = d3.selectAll(".matrix-column")
-      .filter(function(d, i){return colNum === i})
+      .filter(function(d, i){return colNum === i })
       .classed("column-active", function(d){
-        return !d3.select(this).classed("column-active")
+        return !d3.select(this)
+                  .classed("column-active")
       })
     this.toggleColText(col.node().getElementsByClassName("matrix-column-text")[0])
   },
@@ -232,17 +274,19 @@ var actionDispatcher = Class.create({
     })
   },
 
-  toggleMultipleCol: function(keyPool){
+  toggleMultipleCol: function(symptomList){
     var self = this
     var config = this.config
-    console.log(keyPool);
+    // var symptomKeyList = symptomList.map(function(s){return s.key})
 
     d3.selectAll(".matrix-column").each(function(c, j){
       var elm = d3.select(this)
       var elmText = elm.node().getElementsByClassName("matrix-column-text")[0]
-      if (keyPool.indexOf(c.data.key) !== -1){
-        elm.classed("column-active", !elm.classed("column-active"))
-        self.toggleColText(elmText)
+
+      var matchedSymptomKeyList = symptomList.filter(function(s){return s.category !== "unknown"}).map(function(s){return s.key})
+
+      if (matchedSymptomKeyList.indexOf(c.data.key) !== -1){
+        self.toggleColumn(j)
       }
     })
   },
@@ -323,8 +367,6 @@ var Term = Class.create({
   initialize: function(key, text){
     this.key = key
     this.text = this.capitalizeEveryWord(text)
-    // this.link = link // type [String]
-    // this.linkContent = new Array() // [term]
   },
 
   capitalizeEveryWord: function(text){
@@ -468,7 +510,8 @@ var Symptom = Class.create(Term, {
       // two symptoms are equal in their attributes
       return true
     }
-  }
+  },
+
 })
 
 
@@ -543,7 +586,7 @@ var dataHandler = Class.create({
 
 
   //utility for sorting symptoms
-  setUpOrderingBySelection: function(data){
+  setUpOrdering: function(data){
     var config = this.config
 
     data.each(function(d){
@@ -594,10 +637,16 @@ var dataHandler = Class.create({
     var clientSelectedSymptom = this.state.outsideCache.all
     var res = []
 
+    console.log(data);
     data.each(function(d){
       var syms = []
       d.symptom.each(function(s){
         var sym = new Symptom(s.key, s.text)
+        // annotate disorder associated phenotype
+        if(s.hasOwnProperty("isPhenotypicAbnormality")){
+          sym.isPhenotypicAbnormality =  s.isPhenotypicAbnormality
+        }
+
         var matches = []
 
         // if symptom has a matching phenotype...
@@ -605,6 +654,7 @@ var dataHandler = Class.create({
           // cast matching phenotypes to Symptom objects
           var matchObj = s.matches.map(function(m){
             var phenotype = new Symptom(m.key, m.text, m.type, m.category)
+
 
             // update disabled property from cache object
             if(clientSelectedSymptom.hasOwnProperty(phenotype.key)){
@@ -623,8 +673,11 @@ var dataHandler = Class.create({
     return res
   },
 
+  /*
+  puts matching symptom directly under Disorder.symptom
+  */
   mergeMatchingSymptoms: function(data){
-    var res = JSON.parse(JSON.stringify(data)) // deep clone does not preserve type
+    var res = JSON.parse(JSON.stringify(data))
 
     res.each(function(d){
       var matches = []
@@ -716,7 +769,7 @@ var dataHandler = Class.create({
   toMatrix: function(data){
 
     // ordering of raw data
-    this.setUpOrderingBySelection(data)
+    this.setUpOrdering(data)
 
     // populate matrix
     var matrix = new Matrix()

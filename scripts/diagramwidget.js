@@ -47,7 +47,7 @@ var Diagram = Class.create({
         free_symptom: "#878787"
       },
       highlight: {
-        symptom: "#39aac7",
+        symptom: "#004b5e",
         not_symptom: "red",
         free_symptom: "#878787"
       }
@@ -330,8 +330,7 @@ var Diagram = Class.create({
         }
         Dispatcher.toggleRow(d.x)
 
-        // var keyPool = d.data.link
-        // Dispatcher.toggleMultipleCol(keyPool) //TODO:
+        Dispatcher.toggleMultipleCol(d.data.symptom) // an array of symptoms
 
       }.bind(this))
       .on("mouseout", function(d, i, j){
@@ -340,8 +339,7 @@ var Diagram = Class.create({
         Dispatcher.toggleRow(d.x)
         Dispatcher.removeToolTip()
 
-        var keyPool = d.data.link
-        // Dispatcher.toggleMultipleCol(keyPool) //TODO
+        Dispatcher.toggleMultipleCol(d.data.symptom)
 
       }.bind(this))
   },
@@ -360,7 +358,7 @@ var Diagram = Class.create({
         .attr("id", "DiagramInfoHeading")
 
     headings.append("div")
-        .attr("id", "DiagramInfoSubHeading")
+        .attr("id", "DiagramInfoHeadingMain")
 
     var infoDetails = state.rightGroup
       .append("div")
@@ -413,8 +411,8 @@ var Diagram = Class.create({
           Dispatcher.toggleColumn(d.y)
           Dispatcher.showToolTip(j[i], d)
 
-          // d.data.key is the symptom
-          // Dispatcher.toggleMultipleRow(keyPool) //TODO: wrecked
+          // d.data.key is the symptom HP:123455...
+          Dispatcher.toggleMultipleRow(d.data.key)
         }.bind(this))
         .on("mouseout", function(d, i, j){
 
@@ -422,8 +420,7 @@ var Diagram = Class.create({
           Dispatcher.toggleColumn(d.y)
           Dispatcher.removeToolTip()
 
-          var keyPool = d.data.link
-          // Dispatcher.toggleMultipleRow(keyPool) //TODO:wrecked
+          Dispatcher.toggleMultipleRow(d.data.key)
 
         }.bind(this))
 
@@ -499,15 +496,6 @@ var Diagram = Class.create({
           Dispatcher.toggleRow(self.__data__.x)
           Dispatcher.toggleColumn(self.__data__.y)
 
-          // tooltips popup for cell with value in z
-          if (self.__data__.z){
-            // list parentRow to top so that tooltip displays properly
-            var parentRow = this.state.selection.row(self.__data__.x).node()
-            Dispatcher.liftToTop(parentRow)
-            //necesasry?
-
-            // Dispatcher.currElem(self.previousSibling)
-          }
         }.bind(this)) // end mouseover
         .on("mouseout",  function(d, i, j){
           var self = j[i]
@@ -516,16 +504,11 @@ var Diagram = Class.create({
           Dispatcher.toggleRow(self.__data__.x)
           Dispatcher.toggleColumn(self.__data__.y)
 
-          if (self.__data__.z){
-            Dispatcher.sortRows()
-            // Dispatcher.currElem(self.previousSibling)
-          }
         }.bind(this)) // end mouseout()
 
 
     } // end createMatrix
 }) // end class.create
-
 
 
 
@@ -586,7 +569,7 @@ var actionDispatcher = Class.create({
     if(Array.isArray(omimText)){
         text = omimText.join("\n")
     }
-    var infoSubHeading = d3.select("#DiagramInfoSubHeading")
+    var infoSubHeading = d3.select("#DiagramInfoHeadingMain")
         .text(text)
   },
 
@@ -728,22 +711,29 @@ var actionDispatcher = Class.create({
   },
 
 
-  toggleMultipleRow: function(keyPool){
+  toggleMultipleRow: function(symptomKey){
+    var self = this
+
     d3.selectAll(".matrix-row").each(function(d, i){
       var elm = d3.select(this)
       var elmBackground = d3.select(elm.node().firstChild)
-      if (keyPool.indexOf(d.data.key) !== -1){
-        elm.classed("row-active", !elm.classed("row-active"))
-        elmBackground.classed("row-background-active", !elmBackground.classed("row-background-active"))
+
+      var symtomList = d.data.symptom
+      var index = symtomList.map(function(s){return s.key}).indexOf(symptomKey)
+
+      if (index !== -1 && symtomList[index].category !== 'unknown'){
+        self.toggleRow(i)
       }
     })
   },
 
   toggleColumn: function(colNum){
+
     var col = d3.selectAll(".matrix-column")
-      .filter(function(d, i){return colNum === i})
+      .filter(function(d, i){return colNum === i })
       .classed("column-active", function(d){
-        return !d3.select(this).classed("column-active")
+        return !d3.select(this)
+                  .classed("column-active")
       })
     this.toggleColText(col.node().getElementsByClassName("matrix-column-text")[0])
   },
@@ -762,17 +752,19 @@ var actionDispatcher = Class.create({
     })
   },
 
-  toggleMultipleCol: function(keyPool){
+  toggleMultipleCol: function(symptomList){
     var self = this
     var config = this.config
-    console.log(keyPool);
+    // var symptomKeyList = symptomList.map(function(s){return s.key})
 
     d3.selectAll(".matrix-column").each(function(c, j){
       var elm = d3.select(this)
       var elmText = elm.node().getElementsByClassName("matrix-column-text")[0]
-      if (keyPool.indexOf(c.data.key) !== -1){
-        elm.classed("column-active", !elm.classed("column-active"))
-        self.toggleColText(elmText)
+
+      var matchedSymptomKeyList = symptomList.filter(function(s){return s.category !== "unknown"}).map(function(s){return s.key})
+
+      if (matchedSymptomKeyList.indexOf(c.data.key) !== -1){
+        self.toggleColumn(j)
       }
     })
   },
@@ -853,8 +845,6 @@ var Term = Class.create({
   initialize: function(key, text){
     this.key = key
     this.text = this.capitalizeEveryWord(text)
-    // this.link = link // type [String]
-    // this.linkContent = new Array() // [term]
   },
 
   capitalizeEveryWord: function(text){
@@ -998,7 +988,8 @@ var Symptom = Class.create(Term, {
       // two symptoms are equal in their attributes
       return true
     }
-  }
+  },
+
 })
 
 
@@ -1073,7 +1064,7 @@ var dataHandler = Class.create({
 
 
   //utility for sorting symptoms
-  setUpOrderingBySelection: function(data){
+  setUpOrdering: function(data){
     var config = this.config
 
     data.each(function(d){
@@ -1153,8 +1144,11 @@ var dataHandler = Class.create({
     return res
   },
 
+  /*
+  puts matching symptom directly under Disorder.symptom
+  */
   mergeMatchingSymptoms: function(data){
-    var res = JSON.parse(JSON.stringify(data)) // deep clone does not preserve type
+    var res = JSON.parse(JSON.stringify(data))
 
     res.each(function(d){
       var matches = []
@@ -1246,7 +1240,7 @@ var dataHandler = Class.create({
   toMatrix: function(data){
 
     // ordering of raw data
-    this.setUpOrderingBySelection(data)
+    this.setUpOrdering(data)
 
     // populate matrix
     var matrix = new Matrix()

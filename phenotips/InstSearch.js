@@ -11,9 +11,6 @@ document.observe('xwiki:dom:loading', function() {
 
         initialize: function(domElt, data, options){
 
-          console.log(JSON.stringify(data));
-          console.log(JSON.stringify(cache));
-
           this.config = this._resolveConfig(options, domElt)
 
           this.state = {}
@@ -34,8 +31,8 @@ document.observe('xwiki:dom:loading', function() {
         // internal configs
         internalConfig: {
           top: 150,
-          height: 450,
-          totalHeight: 0, // height + top = 700
+          height: 460,    // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
+          totalHeight: 0, // height + top = 610
           leftContainer: {
             width: 270
           },
@@ -147,11 +144,16 @@ document.observe('xwiki:dom:loading', function() {
         draw: function(){
 
           this._createSVGContainers()
+          this._createCellFilter()
           this._createLegend()
           this._createRowHeadings()
           this._createMatrix()
           this._createInfoBar()
 
+          // creates first info bar view
+          var e = document.createEvent('UIEvents');
+          e.initUIEvent('click', true, true);
+          d3.select(".matrix-row-text").node().dispatchEvent(e);
         },
 
 
@@ -196,6 +198,7 @@ document.observe('xwiki:dom:loading', function() {
             .style("position", "fixed")
             .style("background", config.tooltip.backgroundColor)   // same as row highlight color
             .style("font-weight", "bold")
+            .style("box-shadow", "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)")
 
           state.leftContainer = rootDiv
             .append("div")
@@ -228,7 +231,6 @@ document.observe('xwiki:dom:loading', function() {
               .attr("id","middleContainer")
               .style("max-width", config.middleContainer.adaptiveWidthPadded  + "px")
               .style("height", config.totalHeight + "px")
-              .style("margin-left", config.leftContainer.width + "px")
             .append("svg")
               .attr("id", "middleSVG")
               .style("width", config.middleContainer.scaleWidthPadded + "px")
@@ -243,11 +245,41 @@ document.observe('xwiki:dom:loading', function() {
               .attr("id", "rightContainer")
               .style("width", config.rightContainer.width + "px")
               .style("height",  config.totalHeight + "px")
-              .style("margin-left", (config.leftContainer.width + config.middleContainer.adaptiveWidthPadded + 10) + "px")
-              .style("overflow-y", "auto")
+              .style("padding-left", "1.5em")
             .append("div")
               .style("height", config.height + "px")
 
+        },
+
+        _createCellFilter(){
+
+          // source: http://bl.ocks.org/cpbotha/5200394
+
+          var defs = d3.select("#middleSVG").append("defs");
+
+          var filter = defs.append("filter")
+              .attr("transform", "translate(0, 11)")
+              .attr("id", "drop-shadow")
+              .attr("height", "300%")
+              .attr("width", "300%")
+              .attr("x", -1)
+              .attr("y", -1)
+
+          filter.append("feOffset")
+              .attr("in", "SourceGraphic")
+              .attr("dx", 2)
+              .attr("dy", 2)
+              .attr("result", "offOut");
+
+
+          filter.append("feGaussianBlur")
+              .attr("in", "offOut")
+              .attr("stdDeviation", 5)
+              .attr("result", "blurOut");
+          filter.append("feBlend")
+              .attr("in","SourceGraphic")
+              .attr("in2", "blurOut")
+              .attr("mode", "normal")
         },
 
         _createLegend: function(){
@@ -350,6 +382,9 @@ document.observe('xwiki:dom:loading', function() {
               Dispatcher.toggleMultipleCol(d.data.symptom)
 
             }.bind(this))
+
+
+
         },
 
         _createInfoBar: function(){
@@ -368,15 +403,21 @@ document.observe('xwiki:dom:loading', function() {
           headings.append("div")
               .attr("id", "DiagramInfoHeadingMain")
 
+          headings.append("div")
+              .attr("id", "phenotypicAbnormalityBlock")
+
           var infoDetails = state.rightGroup
             .append("div")
               .attr("id", "infoDetails")
               .style("margin-top", config.top)
+              .style("max-height", "200px")
+              .style("overflow-y", "auto")
 
           infoDetails
             .append("table")
               .attr("id", "infoDetailsTable")
-              .style("overflow-y", "auto")
+              .attr("width", config.rightContainer.width)
+
         },
 
         // create matrix components
@@ -386,7 +427,6 @@ document.observe('xwiki:dom:loading', function() {
           /**
            * COLUMNS
            */
-          console.log(state.scale.x.bandwidth());
 
           state.column = state.middleGroup.selectAll(".matrix-column")
               .data(state.matrix[0]) // first row
@@ -440,7 +480,7 @@ document.observe('xwiki:dom:loading', function() {
               .data(state.matrix)
             .enter().append("g")
               .attr("class", "matrix-row")
-              .attr("transform", function(d) { return "translate(0," + state.scale.y(d.data.text) + ")"; })
+              .attr("transform", function(d) {return "translate(0," + state.scale.y(d.data.text) + ")"; })
 
 
           state.row
@@ -519,8 +559,6 @@ document.observe('xwiki:dom:loading', function() {
       }) // end class.create
 
 
-
-
       // adding a new method to prototype
        Element.addMethods({
          removeAllChildElement: function(elm){
@@ -547,7 +585,37 @@ document.observe('xwiki:dom:loading', function() {
           // this.updateInfoSubHeading(d.data.getText())
 
           var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
-          this.updateInfoDetailsList(symptomList)
+
+
+          // filters out phenotypic abnormalities
+          var nonphenotypicAbnormality = symptomList.filter(function(s){
+            return !s.isPhenotypicAbnormality
+          })
+          this.updateNonPhenotypicAbnormalityBlock(nonphenotypicAbnormality)
+
+          // filters out non-phenotypic abnormalities
+          var phenotypicAbnormality = symptomList.filter(function(s){
+            return s.isPhenotypicAbnormality
+          })
+          this.updateInfoDetailsList(phenotypicAbnormality)
+
+        },
+
+        updateNonPhenotypicAbnormalityBlock: function(nonphenotypicAbnormality){
+            $("phenotypicAbnormalityBlock").removeAllChildElement()
+            var block = d3.select("#phenotypicAbnormalityBlock")
+              .selectAll(".nonPhenotypes")
+                .data(nonphenotypicAbnormality)
+              .enter().append("button")
+                .attr("class", "phenotypeButton")
+              .append("a")
+                .attr("class", "phenotypeButtonLink")
+                .attr("target", "_blank")
+                .attr("href", function(d){
+                  return "http://compbio.charite.de/hpoweb/showterm?id=" + d.key
+                })
+                .text(function(d){return d.text})
+
         },
 
         updateInfoHeading: function(d){
@@ -560,18 +628,21 @@ document.observe('xwiki:dom:loading', function() {
           var infoHeading = d3.select("#DiagramInfoHeading")
             .html("")
 
-          infoHeading.append("span")
+          infoHeading.append("button")
+            .attr("class", "omimLinkButton")
             .append("a")
+              .attr("class", "instantSeartchLink")
               .attr("target", "_blank")
               .attr("href", "http://www.omim.org/")
               .text("OMIM")
 
-          infoHeading.append("span")
+          infoHeading.append("button")
+            .attr("class", "omimLinkButton")
             .append("a")
+              .attr("class", "instantSeartchLink")
               .attr("target", "_blank")
               .attr("href", "http://www.omim.org/entry/" + t)
               .text(omimID)
-              .style("padding-left", "1em")
 
           var text = omimText
           if(Array.isArray(omimText)){
@@ -585,6 +656,11 @@ document.observe('xwiki:dom:loading', function() {
         updateInfoDetailsList: function(symptom){
           var config = this.config
           var state = this.state
+
+          // change table of symptoms according to height of infobar heading
+          d3.select("#infoDetails")
+            .style("max-height", (config.totalHeight - d3.select("#InfoHeading").node().getBoundingClientRect().height-4) + "px")
+
 
           // sort symptom to lift those with match to top
           symptom.sort(function(a,b){
@@ -613,6 +689,7 @@ document.observe('xwiki:dom:loading', function() {
             .enter().append("tr")
               .attr("class", "infoDetailsTableItem")
             .append("td")
+              .style("width", config.rightContainer.width)
               .style("color", function(d){
                 if(d.matches){
                   return "#5c5c5c"
@@ -682,6 +759,11 @@ document.observe('xwiki:dom:loading', function() {
           // change cell color by css class
           var cellSelection = d3.select(selection)
           cellSelection.classed("cell-mouse-over", !cellSelection.classed("cell-mouse-over"))
+
+          // apply filters
+          var filter = (cellSelection.attr("filter") === "url(#drop-shadow)" ? null : "url(#drop-shadow)")
+          cellSelection.attr("filter", filter)
+
         },
 
         toggleRow: function(rowNum){
@@ -1123,10 +1205,16 @@ document.observe('xwiki:dom:loading', function() {
           var clientSelectedSymptom = this.state.outsideCache.all
           var res = []
 
+          console.log(data);
           data.each(function(d){
             var syms = []
             d.symptom.each(function(s){
               var sym = new Symptom(s.key, s.text)
+              // annotate disorder associated phenotype
+              if(s.hasOwnProperty("isPhenotypicAbnormality")){
+                sym.isPhenotypicAbnormality =  s.isPhenotypicAbnormality
+              }
+
               var matches = []
 
               // if symptom has a matching phenotype...
@@ -1134,6 +1222,7 @@ document.observe('xwiki:dom:loading', function() {
                 // cast matching phenotypes to Symptom objects
                 var matchObj = s.matches.map(function(m){
                   var phenotype = new Symptom(m.key, m.text, m.type, m.category)
+
 
                   // update disabled property from cache object
                   if(clientSelectedSymptom.hasOwnProperty(phenotype.key)){
@@ -1289,6 +1378,7 @@ document.observe('xwiki:dom:loading', function() {
         }
 
       }) // end dataHandler class
+
 
 
         // instantiation

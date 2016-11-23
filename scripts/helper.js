@@ -27,29 +27,36 @@ var actionDispatcher = Class.create({
 
     var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
 
-    // filters out non-phenotypic abnormalities
-    var phenotypicAbnormality = symptomList.filter(function(s){
-      return s.isPhenotypicAbnormality
-    })
-    this.updateInfoDetailsList(phenotypicAbnormality)
 
     // filters out phenotypic abnormalities
     var nonphenotypicAbnormality = symptomList.filter(function(s){
       return !s.isPhenotypicAbnormality
     })
     this.updateNonPhenotypicAbnormalityBlock(nonphenotypicAbnormality)
+
+    // filters out non-phenotypic abnormalities
+    var phenotypicAbnormality = symptomList.filter(function(s){
+      return s.isPhenotypicAbnormality
+    })
+    this.updateInfoDetailsList(phenotypicAbnormality)
+
   },
 
   updateNonPhenotypicAbnormalityBlock: function(nonphenotypicAbnormality){
-      $("notPhenotypicAbnormalityBlock").removeAllChildElement()
-      var block = d3.select("#notPhenotypicAbnormalityBlock")
+      $("phenotypicAbnormalityBlock").removeAllChildElement()
+      var block = d3.select("#phenotypicAbnormalityBlock")
         .selectAll(".nonPhenotypes")
           .data(nonphenotypicAbnormality)
         .enter().append("button")
           .attr("class", "phenotypeButton")
-          .html(function(d){
-            return d.text
+        .append("a")
+          .attr("class", "phenotypeButtonLink")
+          .attr("target", "_blank")
+          .attr("href", function(d){
+            return "http://compbio.charite.de/hpoweb/showterm?id=" + d.key
           })
+          .text(function(d){return d.text})
+
   },
 
   updateInfoHeading: function(d){
@@ -69,7 +76,6 @@ var actionDispatcher = Class.create({
         .attr("target", "_blank")
         .attr("href", "http://www.omim.org/")
         .text("OMIM")
-        .style("color", "#505050")
 
     infoHeading.append("button")
       .attr("class", "omimLinkButton")
@@ -78,8 +84,6 @@ var actionDispatcher = Class.create({
         .attr("target", "_blank")
         .attr("href", "http://www.omim.org/entry/" + t)
         .text(omimID)
-        .style("padding-left", "1em")
-        .style("color", "#505050")
 
     var text = omimText
     if(Array.isArray(omimText)){
@@ -93,6 +97,11 @@ var actionDispatcher = Class.create({
   updateInfoDetailsList: function(symptom){
     var config = this.config
     var state = this.state
+
+    // change table of symptoms according to height of infobar heading
+    d3.select("#infoDetails")
+      .style("max-height", (config.totalHeight - d3.select("#InfoHeading").node().getBoundingClientRect().height-4) + "px")
+
 
     // sort symptom to lift those with match to top
     symptom.sort(function(a,b){

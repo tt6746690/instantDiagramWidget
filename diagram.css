@@ -1,7 +1,7 @@
 
 
 #instantSearchDiagram {
-  margin: 0 auto;
+  margin: 0;
   padding: 0;
   display: table;
 
@@ -21,6 +21,7 @@
 
   overflow-x: auto;
   overflow-y: hidden;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 
 }
 
@@ -28,10 +29,7 @@
   /*border:1px solid #7db59b;*/
   display: table-cell;
   vertical-align: top;
-
-  overflow-x: hidden;
-  overflow-y: visible;
-  padding: 1em;
+  margin-left: 1em;
 }
 
 
@@ -89,30 +87,33 @@
   font-size: 14px;
   color: #000000;
   background-color: #e5eff2;
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  box-shadow:  0 6px 20px 0 rgba(0, 0, 0, 0.2), 0 4px 8px 0 rgba(0, 0, 0, 0.19);
   padding: 0.3em;
 }
 
 #DiagramInfoHeadingMain {
-  font-size: 20px;
+  font-size: 22px;
   color: #ffffff;
   padding: 0.5em;
   background-color: #70afe9;
-  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  /*box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);*/
   text-align: center;
 }
 
 
+#infoDetails{
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
 #infoDetailsTable {
   text-align: left;
   color: #8c8c8c;
-  font-size: 14px
+  font-size: 14px;
 }
 
 
 #tooltipTitle {
   font-size: 18px;
-  /*color: #39aac7*/
 }
 
 
@@ -138,18 +139,29 @@
 .instantSeartchLink{
   padding-left: initial !important;
   text-decoration: none;
+  color: #505050;
 }
 
+.omimLinkButton{
+  color: #505050;
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+}
 
-#notPhenotypicAbnormalityBlock{
+#phenotypicAbnormalityBlock{
   margin-bottom: 0.5em;
   background-color: #e5eff2;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
   text-align: center;
-  padding: 0.3em;
 }
 
 .phenotypeButton{
+  margin: 0.1em;
+}
+
+.phenotypeButtonLink{
+  text-decoration: none;
+  color: #505050;
 }
 
 .phenotypeButton:active{

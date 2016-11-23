@@ -27,7 +27,7 @@ var Diagram = Class.create({
   internalConfig: {
     top: 150,
     height: 460,    // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
-    totalHeight: 0, // height + top = 700
+    totalHeight: 0, // height + top = 610
     leftContainer: {
       width: 270
     },
@@ -145,6 +145,10 @@ var Diagram = Class.create({
     this._createMatrix()
     this._createInfoBar()
 
+    // creates first info bar view
+    var e = document.createEvent('UIEvents');
+    e.initUIEvent('click', true, true);
+    d3.select(".matrix-row-text").node().dispatchEvent(e);
   },
 
 
@@ -222,7 +226,6 @@ var Diagram = Class.create({
         .attr("id","middleContainer")
         .style("max-width", config.middleContainer.adaptiveWidthPadded  + "px")
         .style("height", config.totalHeight + "px")
-        .style("margin-left", config.leftContainer.width + "px")
       .append("svg")
         .attr("id", "middleSVG")
         .style("width", config.middleContainer.scaleWidthPadded + "px")
@@ -237,8 +240,7 @@ var Diagram = Class.create({
         .attr("id", "rightContainer")
         .style("width", config.rightContainer.width + "px")
         .style("height",  config.totalHeight + "px")
-        .style("margin-left", (config.leftContainer.width + config.middleContainer.adaptiveWidthPadded + 10) + "px")
-        .style("overflow-y", "auto")
+        .style("padding-left", "1.5em")
       .append("div")
         .style("height", config.height + "px")
 
@@ -375,6 +377,9 @@ var Diagram = Class.create({
         Dispatcher.toggleMultipleCol(d.data.symptom)
 
       }.bind(this))
+
+
+
   },
 
   _createInfoBar: function(){
@@ -394,18 +399,20 @@ var Diagram = Class.create({
         .attr("id", "DiagramInfoHeadingMain")
 
     headings.append("div")
-        .attr("id", "notPhenotypicAbnormalityBlock")
+        .attr("id", "phenotypicAbnormalityBlock")
 
     var infoDetails = state.rightGroup
       .append("div")
         .attr("id", "infoDetails")
         .style("margin-top", config.top)
+        .style("max-height", "200px")
+        .style("overflow-y", "auto")
 
     infoDetails
       .append("table")
         .attr("id", "infoDetailsTable")
         .attr("width", config.rightContainer.width)
-        .style("overflow-y", "auto")
+
   },
 
   // create matrix components

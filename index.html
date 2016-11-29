@@ -25,6 +25,7 @@
 <script src="./scripts/diagram.js"></script>
 <script src="./scripts/helper.js"></script>
 <script>
+
   // instantiation
   var d = new Diagram(
     $('instantSearchDiagram'),
@@ -44,4 +45,6 @@
   $('button3').observe('click', function(e){
     d.toggleCompression()
   })
+  Event.observe(window, 'resize', d.reload.bind(d));
+
 </script>

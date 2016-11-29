@@ -1,3 +1,4 @@
+
 /**
  * Diagram Class
  */
@@ -15,7 +16,6 @@ var Diagram = Class.create({
     this.state.data = this.state.dataHandler.procData
     this.state.matrix = this.state.dataHandler.matrix
     this.state.scale = this._setUpScale()
-    this.state.selection = this._specifySelect()
 
     this.state.actionDispatcher = new actionDispatcher(this.config, this.state)
 
@@ -26,7 +26,7 @@ var Diagram = Class.create({
   // internal configs
   internalConfig: {
     top: 150,
-    height: 460,    // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
+    height: 380,    // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
     totalHeight: 0, // height + top = 610
     leftContainer: {
       width: 270
@@ -44,7 +44,8 @@ var Diagram = Class.create({
       default: {
         symptom: "#6caaba",
         not_symptom: "#ff7575",
-        free_symptom: "#878787"
+        free_symptom: "#878787",
+        disabled: "#c6c6c6"
       },
       highlight: {
         symptom: "#004b5e",
@@ -68,18 +69,8 @@ var Diagram = Class.create({
     termHoverHighlightColor: "#6caaba",
     scaleInnerPadding: .05,
     numDisorderdisplayed: 20,
-    oneCellWidth: 25,
-  },
-
-
-  _specifySelect: function(){
-    var state = this.state
-
-    return {
-      row: function(rowNum){
-        return state.row.filter(function(x,i){return i === rowNum;})
-      }
-    }
+    oneCellWidth: 20,
+    makeResponsivePadding: 240
   },
 
   // resolve internal configs and user specified options
@@ -100,8 +91,6 @@ var Diagram = Class.create({
     this.destroy()
     this.draw()
   },
-
-
 
   // set up x and y scale range
   _setUpScale: function(){
@@ -137,7 +126,7 @@ var Diagram = Class.create({
 
   // start creating svg elements
   draw: function(){
-
+    this._updateDimensions(window.innerWidth)
     this._createSVGContainers()
     this._createCellFilter()
     this._createLegend()
@@ -149,8 +138,18 @@ var Diagram = Class.create({
     var e = document.createEvent('UIEvents');
     e.initUIEvent('click', true, true);
     d3.select(".matrix-row-text").node().dispatchEvent(e);
+
   },
 
+  _updateDimensions: function(winWidth){
+    var config = this.config
+    config.middleContainer.width = winWidth - (config.leftContainer.width + config.rightContainer.width + config.makeResponsivePadding)
+    // set a minimum width ...
+    if(config.middleContainer.width < 100){
+      config.middleContainer.width = 100
+    }
+    this._setUpScale()
+  },
 
   toggleCompression: function(){
     var config = this.config
@@ -194,6 +193,7 @@ var Diagram = Class.create({
       .style("background", config.tooltip.backgroundColor)   // same as row highlight color
       .style("font-weight", "bold")
       .style("box-shadow", "0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19)")
+      .style("padding", "0.3em")
 
     state.leftContainer = rootDiv
       .append("div")
@@ -208,7 +208,7 @@ var Diagram = Class.create({
       .append("g")
         .attr("id", "legendGroup")
         .attr("class", "svg-group")
-        .attr("transform", "translate(" + config.leftContainer.width/3 + "," + config.top/3 + ")")
+        .attr("transform", "translate(" + config.leftContainer.width/6 + "," + config.top/3 + ")")
 
 
     state.leftGroup = state.leftContainer
@@ -247,8 +247,6 @@ var Diagram = Class.create({
   },
 
   _createCellFilter(){
-
-    // source: http://bl.ocks.org/cpbotha/5200394
 
     var defs = d3.select("#middleSVG").append("defs");
 
@@ -321,7 +319,14 @@ var Diagram = Class.create({
         .attr("dominant-baseline", "central")
         .attr("text-anchor", "start")
         .style("font-style", "italic")
-        .text(function(d){return d})
+        .style("font-size", "0.8em")
+        .text(function(d){
+          // a special case
+          if(d === "ancestor"){
+            return "match to general phenotype category"
+          }
+          return d
+        })
   },
 
 
@@ -445,9 +450,17 @@ var Diagram = Class.create({
         .attr("text-anchor", "start")
         .attr("transform", "rotate(-45)")
         .attr("fill", function(d){
+          if(d.data.disabled){
+            return config.color.default.disabled;
+          }
           return d.data.type && (config.color.default[d.data.type] || "lightgrey")
         })
         .text(function(d) { return d.data.getShortText(); })
+        .style("text-decoration", function(d){
+          if(d.data.disabled){
+            return "line-through";
+          }
+        })
         .on("mouseover", function(d, i, j){
 
           var Dispatcher = this.state.actionDispatcher
@@ -552,3 +565,8 @@ var Diagram = Class.create({
 
     } // end createMatrix
 }) // end class.create
+
+
+/**
+ * responsive layout
+ */

@@ -155,9 +155,9 @@ var actionDispatcher = Class.create({
         .attr("width", state.scale.x.bandwidth()/1.5)
         .attr("height", state.scale.y.bandwidth()/1.5)
       .append("path")
-        .attr("transform", "translate(" + state.scale.x.bandwidth()/3 + ", "+ state.scale.y.bandwidth()/3 +") rotate(45)")
+        .attr("transform", "translate(" + state.scale.x.bandwidth()/3 + ", "+ state.scale.y.bandwidth()/2.8 +") rotate(45)")
         .attr("d", d3.symbol()
-          .size([1/7 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
+          .size([1/8 * state.scale.x.bandwidth() * state.scale.x.bandwidth()])
           .type(function(d){
             var symbol = "symbol" + config.cellSymbol[d.category]
             return  d3[symbol] || d3.symbolCircle
@@ -272,6 +272,9 @@ var actionDispatcher = Class.create({
   toggleColText: function(elm){
     var config = this.config
     d3.select(elm).attr("fill", function(d){
+      if(d.data.disabled){
+        return config.color.default.disabled;
+      }
       var highlightColor = d.data.type && (config.color.highlight[d.data.type] || "lightgrey")
       var defaultColor = d.data.type && (config.color.default[d.data.type] || "lightgrey")
       var highlight = d3.select(this).attr("fill") === defaultColor ? true: false
@@ -646,7 +649,6 @@ var dataHandler = Class.create({
     var clientSelectedSymptom = this.state.outsideCache.all
     var res = []
 
-    console.log(data);
     data.each(function(d){
       var syms = []
       d.symptom.each(function(s){
@@ -729,7 +731,7 @@ var dataHandler = Class.create({
         return sym
       })
       // evaluate symptom category and eliminate redundant ones
-      console.log("DISORDER: " + d.key);
+      // console.log("DISORDER: " + d.key);
 
       var nonDuplicates = []
       // adding user-selected phenotype that did not match anything to the array
@@ -752,11 +754,11 @@ var dataHandler = Class.create({
           if(next.key === within.key){
             pushAgain = false
             if(next.greaterThan(within)){
-              console.log('REPLACE: ' + within.toString() + " => " + next.toString());
+              // console.log('REPLACE: ' + within.toString() + " => " + next.toString());
               nonDuplicates[i] = next
               break
             } else {
-              console.log('DO NOTHING: ' + within.toString());
+              // console.log('DO NOTHING: ' + within.toString());
             }
           }
         }

@@ -1,10 +1,9 @@
 
 
 #instantSearchDiagram {
-  margin: 0;
+  margin: auto;
   padding: 0;
   display: table;
-
 }
 
 
@@ -45,7 +44,7 @@
   font-size: 17px;
 }
 .matrix-row-text {
-  font-size: 1.1em;
+  font-size: 1em;
   text-anchor: end;
 }
 
@@ -73,31 +72,23 @@
 }
 
 
-.matrix-cell-tooltip-group {
-  opacity: 0;
-}
-
-.matrix-cell-tooltip-background {
-  fill: #ffffff;
-  fill-opacity: 0.8;
-}
-
 
 #DiagramInfoHeading {
   font-size: 14px;
   color: #000000;
   background-color: #e5eff2;
   box-shadow:  0 6px 20px 0 rgba(0, 0, 0, 0.2), 0 4px 8px 0 rgba(0, 0, 0, 0.19);
-  padding: 0.3em;
+  padding: 0.5em;
 }
 
 #DiagramInfoHeadingMain {
   font-size: 22px;
   color: #ffffff;
   padding: 0.5em;
-  background-color: #70afe9;
+  background-color: #4b657c;
   /*box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);*/
   text-align: center;
+  text-shadow: none;
 }
 
 
@@ -109,6 +100,7 @@
   text-align: left;
   color: #8c8c8c;
   font-size: 14px;
+  padding: 0.5em;
 }
 
 
@@ -153,6 +145,7 @@
   background-color: #e5eff2;
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
   text-align: center;
+  padding: 0.3em;
 }
 
 .phenotypeButton{

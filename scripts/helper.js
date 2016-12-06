@@ -12,39 +12,79 @@ Element.addMethods({
 
 // Aggregation of atomic events
 var actionDispatcher = Class.create({
+
+    // initialize with config and state of widget
     initialize: function(config, state) {
         this.config = config
         this.state = state
     },
 
-
+    // populates right info bar with Disorder related information
     updateInfoBar: function(d) {
 
         this.updateInfoHeading(d.data)
-            // this.updateInfoSubHeading(d.data.getText())
 
+        // symptomList includes every phenotype associated with the disorder d
         var symptomList = this.state.dataHandler.getSymptomList(d.data.key)
 
-
         // filters out phenotypic abnormalities
-        var nonphenotypicAbnormality = symptomList.filter(function(s) {
+        var nonphenotypicAbnormalityList = symptomList.filter(function(s) {
             return !s.isPhenotypicAbnormality
         })
-        this.updateNonPhenotypicAbnormalityBlock(nonphenotypicAbnormality)
-
         // filters out non-phenotypic abnormalities
         var phenotypicAbnormality = symptomList.filter(function(s) {
             return s.isPhenotypicAbnormality
         })
-        this.updateInfoDetailsList(phenotypicAbnormality)
 
+        this.updateNonPhenotypicAbnormalityBlock(nonphenotypicAbnormalityList)
+        this.updateInfoDetailsList(phenotypicAbnormality)
     },
 
-    updateNonPhenotypicAbnormalityBlock: function(nonphenotypicAbnormality) {
+    // updates InfoHeadings with disorder's data
+    updateInfoHeading: function(d) {
+        var omimID = d.getKey()
+        var omimIDNumber = omimID.match(/\d+/) // number only..
+        var omimText = d.getText()
+        var joinedText = omimText
+        if (Array.isArray(omimText)) {
+            joinedText = omimText.join("\n")
+        }
+
+        // removes pre-existing content
+        var infoHeading = d3.select("#DiagramInfoHeading")
+            .html("")
+
+        // button links to OMIM website
+        infoHeading.append("button")
+            .attr("class", "omimLinkButton")
+            .append("a")
+            .attr("class", "instantSearchLink")
+            .attr("target", "_blank")
+            .attr("href", "http://www.omim.org/")
+            .text("OMIM")
+
+        // button links to current disorder page under OMIM website
+        infoHeading.append("button")
+            .attr("class", "omimLinkButton")
+            .append("a")
+            .attr("class", "instantSearchLink")
+            .attr("target", "_blank")
+            .attr("href", "http://www.omim.org/entry/" + omimIDNumber)
+            .text(omimID)
+
+        d3.select("#DiagramInfoHeadingMain")
+            .text(joinedText)
+    },
+
+    // updates non-phenotypeic abnormality block
+    updateNonPhenotypicAbnormalityBlock: function(nonphenotypicAbnormalityList) {
+        // clean up
         $("phenotypicAbnormalityBlock").removeAllChildElement()
-        var block = d3.select("#phenotypicAbnormalityBlock")
+
+        // updates non-phenotypic abnormality block
+        d3.select("#phenotypicAbnormalityBlock")
             .selectAll(".nonPhenotypes")
-            .data(nonphenotypicAbnormality)
+            .data(nonphenotypicAbnormalityList)
             .enter().append("button")
             .attr("class", "phenotypeButton")
             .append("a")
@@ -56,44 +96,9 @@ var actionDispatcher = Class.create({
             .text(function(d) {
                 return d.text
             })
-
     },
 
-    updateInfoHeading: function(d) {
-        var omimID = d.getKey()
-        var omimText = d.getText()
-
-        var regex = /\d+/
-        var t = omimID.match(regex)
-
-        var infoHeading = d3.select("#DiagramInfoHeading")
-            .html("")
-
-        infoHeading.append("button")
-            .attr("class", "omimLinkButton")
-            .append("a")
-            .attr("class", "instantSeartchLink")
-            .attr("target", "_blank")
-            .attr("href", "http://www.omim.org/")
-            .text("OMIM")
-
-        infoHeading.append("button")
-            .attr("class", "omimLinkButton")
-            .append("a")
-            .attr("class", "instantSeartchLink")
-            .attr("target", "_blank")
-            .attr("href", "http://www.omim.org/entry/" + t)
-            .text(omimID)
-
-        var text = omimText
-        if (Array.isArray(omimText)) {
-            text = omimText.join("\n")
-        }
-        var infoSubHeading = d3.select("#DiagramInfoHeadingMain")
-            .text(text)
-    },
-
-
+    // populates infoDetails table with a list of symptoms
     updateInfoDetailsList: function(symptom) {
         var config = this.config
         var state = this.state
@@ -101,7 +106,6 @@ var actionDispatcher = Class.create({
         // change table of symptoms according to height of infobar heading
         d3.select("#infoDetails")
             .style("max-height", (config.totalHeight - d3.select("#InfoHeading").node().getBoundingClientRect().height - 4) + "px")
-
 
         // sort symptom to lift those with match to top
         symptom.sort(function(a, b) {
@@ -115,23 +119,24 @@ var actionDispatcher = Class.create({
         })
 
         // flatten the symptoms to fit in table rows
-        var expandedSymptoms = []
-
+        var flattenedSymptoms = []
         symptom.each(function(s) {
-            expandedSymptoms.push(s)
+            flattenedSymptoms.push(s)
             if (s.matches && s.matches.length !== 0) {
-                expandedSymptoms = expandedSymptoms.concat(s.matches)
+                flattenedSymptoms = flattenedSymptoms.concat(s.matches)
             }
         })
 
+        // populates each table row with symptom names
         $("infoDetailsTable").removeAllChildElement()
         var tableCell = d3.select("#infoDetailsTable").selectAll(".infoDetailsTableItem")
-            .data(expandedSymptoms)
+            .data(flattenedSymptoms)
             .enter().append("tr")
             .attr("class", "infoDetailsTableItem")
-            .append("td")
+            .append("th")
             .style("width", config.rightContainer.width)
             .style("color", function(d) {
+                // assigns color to tr text to correspond to matching cell color
                 if (d.matches) {
                     return "#5c5c5c"
                 } else if (d.category === "ancestor" || d.category === "match") {
@@ -141,7 +146,7 @@ var actionDispatcher = Class.create({
                 }
             })
 
-
+        // appends cell symbols to matching phenotypes
         tableCell.append("span")
             .filter(function(d) {
                 return d.category
@@ -179,7 +184,7 @@ var actionDispatcher = Class.create({
             })
             .style("stroke-width", state.scale.x.bandwidth() / 8)
 
-
+        // now appends matching phenotype's name
         tableCell.append("span")
             .attr("class", function(s) {
                 if (s.category) {
@@ -191,11 +196,8 @@ var actionDispatcher = Class.create({
             })
 
     },
-    liftToTop: function(elem) {
-        var plane = elem.parentNode
-        plane.appendChild(elem)
-    },
 
+    // matrix cell click event
     toggleCell: function(selection) {
         // change cell color by css class
         var cellSelection = d3.select(selection)
@@ -207,11 +209,13 @@ var actionDispatcher = Class.create({
 
     },
 
+    // matrix row hover event
     toggleRow: function(rowNum) {
         this.toggleRowHeading(rowNum)
         this.toggleRowBackground(rowNum)
     },
 
+    // highlights row headings text
     toggleRowHeading: function(rowNum) {
         // highlight row text
         d3.selectAll(".matrix-row")
@@ -223,6 +227,7 @@ var actionDispatcher = Class.create({
             })
     },
 
+    // highlights row background color
     toggleRowBackground: function(rowNum) {
         // highlight background
         d3.selectAll(".matrix-row-background")
@@ -234,6 +239,7 @@ var actionDispatcher = Class.create({
             })
     },
 
+    // row heading click event
     toggleRowHeadingUnderline: function(rowNum) {
         d3.selectAll(".matrix-row-text")
             .filter(function(d) {
@@ -249,7 +255,8 @@ var actionDispatcher = Class.create({
             .style("text-decoration-color", this.config.cellStrokeColor)
     },
 
-
+    // column heading hover event
+    //    highlights multiple rows based on associated symptom
     toggleMultipleRow: function(symptomKey) {
         var self = this
 
@@ -268,6 +275,7 @@ var actionDispatcher = Class.create({
         })
     },
 
+    // column hover event
     toggleColumn: function(colNum) {
 
         var col = d3.selectAll(".matrix-column")
@@ -281,6 +289,7 @@ var actionDispatcher = Class.create({
         this.toggleColText(col.node().getElementsByClassName("matrix-column-text")[0])
     },
 
+    // highlight column heading text
     toggleColText: function(elm) {
         var config = this.config
         d3.select(elm).attr("fill", function(d) {
@@ -298,6 +307,7 @@ var actionDispatcher = Class.create({
         })
     },
 
+    // row heading hover event
     toggleMultipleCol: function(symptomList) {
         var self = this
         var config = this.config
@@ -319,6 +329,7 @@ var actionDispatcher = Class.create({
         })
     },
 
+    // show tooltip upon hover to Symptom and Disorder text
     showToolTip: function(currElem, d) {
         var config = this.config
         var state = this.state
@@ -350,36 +361,13 @@ var actionDispatcher = Class.create({
 
     },
 
-    mouseOverTracking: function() {
-        this.state.tooltip
-            .style("left", Math.max(0, d3.event.pageX - this.config.tooltip.width / 2) + "px")
-            .style("top", (d3.event.pageY - this.state.scale.x.bandwidth() * 3) + "px");
-    },
-
+    // on mouse out event
     removeToolTip: function() {
         this.state.tooltip
             .html("")
             .transition()
             .delay(10)
             .style("opacity", 0)
-    },
-
-    // re-sort .matrix-row to restore rect element order
-    sortRows: function() {
-        var self = this
-            // convert NodeList > Array
-        var matrixRows = Array.prototype.slice.call(d3.selectAll(".matrix-row")._groups[0])
-
-        // sort based on transform.translateX
-        matrixRows.sort(function(a, b) {
-            var test = /.*\,(.+)\).*/
-            return a.getAttribute("transform").match(test)[1] - b.getAttribute("transform").match(test)[1]
-        })
-
-        // apply order to this.state.svg
-        matrixRows.each(function(n) {
-            self.liftToTop(n)
-        })
     }
 
 })
@@ -392,30 +380,24 @@ var actionDispatcher = Class.create({
 
 var Term = Class.create({
 
+    // Creates a new term
+    //    String key: for example HP:0000007
     initialize: function(key, text) {
         this.key = key
         this.text = this.capitalizeEveryWord(text)
     },
 
     capitalizeEveryWord: function(text) {
-        newText = []
-        var a = text.toLowerCase().split(/[ ,]+/)
-        a.each(function(b) {
-            newText.push(b.charAt(0).toUpperCase() + b.slice(1))
+        var capitalized = []
+        var lowerCaseCharArray = text.toLowerCase().split(/\s+/)
+        lowerCaseCharArray.each(function(lowerCase) {
+            capitalized.push(lowerCase.charAt(0).toUpperCase() + lowerCase.slice(1))
         })
-        return newText.join(" ")
-    },
-
-    print: function() {
-        console.log(this.key + ' : ' + this.text)
+        return capitalized.join(" ")
     },
 
     toString: function() {
         return this.key + ' : ' + this.text
-    },
-
-    hasKey: function(k) {
-        return this.key === k
     },
 
     getKey: function() {
@@ -432,9 +414,12 @@ var Term = Class.create({
 
 })
 
-
+// Symptom inherits from Term
 var Symptom = Class.create(Term, {
 
+    // Creates a new Symptom object
+    //    String type: is an enum of {symptom, not_symptom, free_symptom}
+    //    String category: 
     initialize: function($super, key, text, type, category) {
         $super(key, text)
         this.category = category

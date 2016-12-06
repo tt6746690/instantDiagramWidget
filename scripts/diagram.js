@@ -1,7 +1,6 @@
 /**
  * Diagram Class
  */
-
 var Diagram = Class.create({
 
         initialize: function(domElt, data, options) {
@@ -25,16 +24,17 @@ var Diagram = Class.create({
         // internal configs
         internalConfig: {
             top: 150,
-            height: 380, // keep it divisible by the number of disorders, i.e. 20 to avoid padding.
-            totalHeight: 0, // height + top = 610
+            height: 380,      // keep it divisible by the number of disorders, 20, to avoid padding.
+            totalHeight: 0,   // height + top =  530
             leftContainer: {
                 width: 270
             },
             middleContainer: {
                 width: 450,
-                scaleWidth: 0, // oneCellwidth * symptomNumber; setting up x scale
-                adaptiveWidth: 0, // oneCellWidth * numbeSymptomdisplayed
-                adaptiveWidthPadded: 0 // adaptiveWidth + top; for setting up div and svg width
+                scaleWidth: 0,         // oneCellwidth * symptomNumber; setting up x scale
+                scaleWidthPadded: 0,   // adds a padding for slanted column text
+                adaptiveWidth: 0,      // oneCellWidth * numbeSymptomdisplayed
+                adaptiveWidthPadded: 0 // for div max-width, required for overflow-x
             },
             rightContainer: {
                 width: 300
@@ -72,12 +72,15 @@ var Diagram = Class.create({
             makeResponsivePadding: 240
         },
 
-        // resolve internal configs and user specified options
-        _resolveConfig: function(options, domElt) {
-            // deep clone prevent prototype.internalConfig from mutating
-            var intConf = JSON.parse(JSON.stringify(this.internalConfig))
-            intConf.domElement = domElt
-            return Object.extend(intConf, options)
+        // start creating svg elements
+        draw: function() {
+            this._updateDimensions(window.innerWidth)
+            this._createSVGContainers()
+            this._createCellFilter()
+            this._createLegend()
+            this._createRowHeadings()
+            this._createMatrix()
+            this._createInfoBar()
         },
 
         // destroy upon removal
@@ -89,6 +92,14 @@ var Diagram = Class.create({
         reload: function() {
             this.destroy()
             this.draw()
+        },
+
+        // resolve internal configs and user specified options
+        _resolveConfig: function(options, domElt) {
+            // deep clone prevent prototype.internalConfig from mutating
+            var intConf = JSON.parse(JSON.stringify(this.internalConfig))
+            intConf.domElement = domElt
+            return Object.extend(intConf, options)
         },
 
         // set up x and y scale range
@@ -115,29 +126,11 @@ var Diagram = Class.create({
             config.middleContainer.adaptiveWidthPadded = config.middleContainer.adaptiveWidth + (config.top / 1.3)
 
 
-            var Scale = {
+            return {
                 x: d3.scaleBand().rangeRound([0, config.middleContainer.scaleWidth]).paddingInner([config.scaleInnerPadding]),
                 y: d3.scaleBand().rangeRound([0, config.height]).paddingInner([config.scaleInnerPadding]),
                 legend: d3.scaleBand().rangeRound([0, config.top / 1.5]).paddingInner([config.scaleInnerPadding])
             }
-            return Scale
-        },
-
-        // start creating svg elements
-        draw: function() {
-            this._updateDimensions(window.innerWidth)
-            this._createSVGContainers()
-            this._createCellFilter()
-            this._createLegend()
-            this._createRowHeadings()
-            this._createMatrix()
-            this._createInfoBar()
-
-            // creates first info bar view
-            var e = document.createEvent('UIEvents');
-            e.initUIEvent('click', true, true);
-            d3.select(".matrix-row-text").node().dispatchEvent(e);
-
         },
 
         _updateDimensions: function(winWidth) {
@@ -150,28 +143,8 @@ var Diagram = Class.create({
             this._setUpScale()
         },
 
-        toggleCompression: function() {
-            var config = this.config
-            var state = this.state
-
-            var curUpperBound = d.state.scale.x.range()[1]
-            var compress = (curUpperBound == config.middleContainer.adaptiveWidth) ? true : false
-
-            if (compress) {
-                state.scale.x.rangeRound([0, config.middleContainer.width])
-                d3.select("middleSVG").attr("width", config.middleContainer.width)
-            } else {
-                state.scale.x.rangeRound([0, config.middleContainer.adaptiveWidth])
-                d3.select("middleSVG").attr("width", config.middleContainer.adaptiveWidth)
-            }
-
-            this.reload()
-        },
-
-
-        // create root svg container
+        // creates skeleton containers / svg / groups
         _createSVGContainers: function() {
-
             var config = this.config
             var state = this.state
                 // set scale domain to symptom and disorder names
@@ -249,6 +222,7 @@ var Diagram = Class.create({
 
         },
 
+        // Gaussian blur and shades for cell symbol
         _createCellFilter() {
 
             var defs = d3.select("#middleSVG").append("defs");
@@ -267,7 +241,6 @@ var Diagram = Class.create({
                 .attr("dy", 2)
                 .attr("result", "offOut");
 
-
             filter.append("feGaussianBlur")
                 .attr("in", "offOut")
                 .attr("stdDeviation", 5)
@@ -278,6 +251,7 @@ var Diagram = Class.create({
                 .attr("mode", "normal")
         },
 
+        // Creates legend for cell symbol
         _createLegend: function() {
             var config = this.config
             var state = this.state
@@ -334,7 +308,7 @@ var Diagram = Class.create({
                 })
         },
 
-
+        // Creates row headings using an array of Disorders
         _createRowHeadings: function() {
             var config = this.config
             var state = this.state
@@ -374,28 +348,26 @@ var Diagram = Class.create({
                 .on("mouseover", function(d, i, j) {
 
                     var Dispatcher = this.state.actionDispatcher
+
+                    // Show tooltip if and only if the text is tool long
                     if (d.data.getText() !== d.data.getShortText()) {
                         Dispatcher.showToolTip(j[i], d)
                     }
                     Dispatcher.toggleRow(d.x)
-
-                    Dispatcher.toggleMultipleCol(d.data.symptom) // an array of symptoms
+                    Dispatcher.toggleMultipleCol(d.data.symptom)
 
                 }.bind(this))
                 .on("mouseout", function(d, i, j) {
 
                     var Dispatcher = this.state.actionDispatcher
-                    Dispatcher.toggleRow(d.x)
                     Dispatcher.removeToolTip()
-
+                    Dispatcher.toggleRow(d.x)
                     Dispatcher.toggleMultipleCol(d.data.symptom)
 
                 }.bind(this))
-
-
-
         },
 
+        // Creates right info bar to the right
         _createInfoBar: function() {
             var config = this.config
             var state = this.state
@@ -427,24 +399,27 @@ var Diagram = Class.create({
                 .attr("id", "infoDetailsTable")
                 .attr("width", config.rightContainer.width)
 
+
+            // creates first info bar view
+            var e = document.createEvent('UIEvents');
+            e.initUIEvent('click', true, true);
+            d3.select(".matrix-row-text").node().dispatchEvent(e);
+
         },
 
-        // create matrix components
+        // Creates matrix components
         _createMatrix: function() {
                 var state = this.state
                 var config = this.config
-                    /**
-                     * COLUMNS
-                     */
 
+                // Column
                 state.column = state.middleGroup.selectAll(".matrix-column")
-                    .data(state.matrix[0]) // first row
+                    .data(state.matrix[0]) // first row sufficient
                     .enter().append("g")
                     .attr("class", "matrix-column")
                     .attr("transform", function(d) {
                         return "translate(" + state.scale.x(d.data.text) + ")"
                     })
-
 
                 state.column
                     .append("rect")
@@ -466,37 +441,31 @@ var Diagram = Class.create({
                         }
                         return d.data.type && (config.color.default[d.data.type] || "lightgrey")
                     })
-                    .text(function(d) {
-                        return d.data.getShortText();
-                    })
                     .style("text-decoration", function(d) {
                         if (d.data.disabled) {
                             return "line-through";
                         }
                     })
+                    .text(function(d) {return d.data.getShortText();})
                     .on("mouseover", function(d, i, j) {
 
                         var Dispatcher = this.state.actionDispatcher
-                        Dispatcher.toggleColumn(d.y)
                         Dispatcher.showToolTip(j[i], d)
-
-                        // d.data.key is the symptom HP:123455...
+                        Dispatcher.toggleColumn(d.y)
                         Dispatcher.toggleMultipleRow(d.data.key)
+
                     }.bind(this))
                     .on("mouseout", function(d, i, j) {
 
                         var Dispatcher = this.state.actionDispatcher
-                        Dispatcher.toggleColumn(d.y)
                         Dispatcher.removeToolTip()
-
+                        Dispatcher.toggleColumn(d.y)
                         Dispatcher.toggleMultipleRow(d.data.key)
 
                     }.bind(this))
 
-                /**
-                 * Row
-                 */
 
+                // Row
                 state.row = state.middleGroup.selectAll(".matrix-row")
                     .data(state.matrix)
                     .enter().append("g")
@@ -513,10 +482,7 @@ var Diagram = Class.create({
                     .attr("width", config.middleContainer.scaleWidth)
                     .attr("height", state.scale.y.bandwidth())
 
-                /**
-                 * Cell
-                 */
-
+                // Cell
                 state.cellGroup = state.row.selectAll("matrix-cell-group")
                     .data(function(d) {
                         return d
@@ -540,7 +506,6 @@ var Diagram = Class.create({
                         } else if (d.data.category === "missmatch") {
                             return config.cellMissMatchColor
                         }
-
                         return config.cellStrokeColor
                     })
                     .style("stroke", function(d) {
@@ -568,26 +533,21 @@ var Diagram = Class.create({
                         var self = j[i]
 
                         var Dispatcher = this.state.actionDispatcher
-                        var matrix = this.state.matrix
                         Dispatcher.toggleCell(self)
                         Dispatcher.toggleRow(self.__data__.x)
                         Dispatcher.toggleColumn(self.__data__.y)
 
-                    }.bind(this)) // end mouseover
+                    }.bind(this))
                     .on("mouseout", function(d, i, j) {
+
                         var self = j[i]
                         var Dispatcher = this.state.actionDispatcher
                         Dispatcher.toggleCell(self)
                         Dispatcher.toggleRow(self.__data__.x)
                         Dispatcher.toggleColumn(self.__data__.y)
 
-                    }.bind(this)) // end mouseout()
+                    }.bind(this))
 
 
-            } // end createMatrix
-    }) // end class.create
-
-
-/**
- * responsive layout
- */
+            }
+    }) 

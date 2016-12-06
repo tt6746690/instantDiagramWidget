@@ -8,13 +8,11 @@
 
 
 #leftContainer {
-  /*border:1px dotted #768588;*/
   display: table-cell;
   vertical-align: top;
 }
 
 #middleContainer {
-  /*border:1px solid #80b89e;*/
   display: table-cell;
   vertical-align: top;
 
@@ -25,7 +23,6 @@
 }
 
 #rightContainer {
-  /*border:1px solid #7db59b;*/
   display: table-cell;
   vertical-align: top;
   margin-left: 1em;
@@ -39,7 +36,6 @@
 }
 
 
-
 .matrix-column-text {
   font-size: 17px;
 }
@@ -47,8 +43,6 @@
   font-size: 1em;
   text-anchor: end;
 }
-
-
 
 
 .row-background-active {
@@ -66,11 +60,6 @@
 .row-active > text {
   fill: #0090b0;
 }
-
-.column-active > text {
-  /*font-size: 18px*/
-}
-
 
 
 #DiagramInfoHeading {

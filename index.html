@@ -13,7 +13,6 @@
   <p> instant search diagram </p>
   <input id='button1' type="button" value="destroy">
   <input id='button2' type="button" value="reload">
-  <input id='button3' type="button" value="compress">
   <div id='instantSearchDiagram'></div>
   <div>
     <p> next paragraph </p>
@@ -42,9 +41,6 @@
     d.reload()
   })
 
-  $('button3').observe('click', function(e){
-    d.toggleCompression()
-  })
   Event.observe(window, 'resize', d.reload.bind(d));
 
 </script>

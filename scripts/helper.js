@@ -10,7 +10,7 @@ Element.addMethods({
 })
 
 
-// Aggregation of atomic events
+// Aggregation of events
 var actionDispatcher = Class.create({
 
     // initialize with config and state of widget
@@ -382,6 +382,7 @@ var Term = Class.create({
 
     // Creates a new term
     //    String key: for example HP:0000007
+    //    String text: for example Seizures
     initialize: function(key, text) {
         this.key = key
         this.text = this.capitalizeEveryWord(text)
@@ -418,14 +419,14 @@ var Term = Class.create({
 var Symptom = Class.create(Term, {
 
     // Creates a new Symptom object
-    //    String type: is an enum of {symptom, not_symptom, free_symptom}
-    //    String category: 
+    //    String type: is one of {symptom, not_symptom, free_symptom}
+    //    String category: is one of {missmatch, match, ancestor, and unknown}
     initialize: function($super, key, text, type, category) {
         $super(key, text)
         this.category = category
         this.type = type
     },
-
+    // ranks symptom based on category for sorting
     calculatePrevalence: function() {
         var mapping = {
             'match': 10,
@@ -444,8 +445,6 @@ var Symptom = Class.create(Term, {
     setType: function(type) {
         if (type === "symptom" || "not_symptom" || "free_symptom") {
             this.type = type
-        } else {
-            alert("incoming symptom type not right")
         }
     },
     // set disabled property to symptom
@@ -457,6 +456,7 @@ var Symptom = Class.create(Term, {
         }
     },
 
+    // get symptom name and append "NO " if it is a not_symptom
     getText: function() {
         var symText = this.text
         if (this.type === "not_symptom") {
@@ -466,14 +466,14 @@ var Symptom = Class.create(Term, {
 
     },
 
+    // returns symptom text of a confined length
     getShortText: function() {
-        var symText = this.getText()
-
         var cutoff = 25
-        if (symText.length > cutoff) {
-            symText = symText.slice(0, cutoff) + " ..."
+        var shortText = this.getText()
+        if (shortText.length > cutoff) {
+            shortText = shortText.slice(0, cutoff) + " ..."
         }
-        return symText
+        return shortText
     },
 
     toString: function($super) {
@@ -484,6 +484,8 @@ var Symptom = Class.create(Term, {
         return $super(s) && this.type === s.type && this.category === s.category
     },
 
+    // evaluates symptom based on its category
+    // for resolving duplicate symptoms
     greaterThan: function(s) {
         var rule = ['missmatch', 'unknown', 'ancestor', 'match']
 
@@ -531,10 +533,10 @@ var Symptom = Class.create(Term, {
 
 var Disorder = Class.create(Term, {
 
+    // symptom is an array of symptoms associated with the disorder
     initialize: function($super, key, text, symptom) {
         $super(key, text)
         this.symptom = symptom
-
     },
 
     getKey: function() {
@@ -552,7 +554,7 @@ var Disorder = Class.create(Term, {
         return
     },
 
-    // get text without the key at the front
+    // returns disorder text of a confined length
     getShortText: function() {
         var disText = this.getText()
 
@@ -581,29 +583,29 @@ var Matrix = Class.create({
 })
 
 /**
- * Data Handler Class
+ * Data Handler
+ *  processes data into different data structures
  */
-
 var dataHandler = Class.create({
+
         initialize: function(data, config, state) {
             this.config = config
             this.state = state
-
 
             this.completeData = this.convertToObject(data)
             this.extractMatchesData = this.mergeMatchingSymptoms(data)
             this.procData = this.preProcess(this.extractMatchesData)
             this.matrix = this.toMatrix(this.procData)
-
         },
 
 
         //utility for sorting symptoms
+        //    first sort based on Symptom.prevalence
+        //    thens sort alphabetically
         setUpOrdering: function(data) {
             var config = this.config
 
             data.each(function(d) {
-                // alphabetical order for the moment
                 d.symptom.sort(function(a, b) {
                     var aPreva = Symptom.prevalence[a.key]
                     var bPreva = Symptom.prevalence[b.key]
@@ -627,7 +629,7 @@ var dataHandler = Class.create({
                 })
             })
         },
-
+        // gets symptoms for disorder with given key
         getSymptomList: function(disKey) {
 
             var disorder = this.completeData.filter(function(d) {
@@ -644,7 +646,7 @@ var dataHandler = Class.create({
             }
 
         },
-
+        // Convert input data to Symptom and Disorder objects
         convertToObject: function(data) {
 
             var clientSelectedSymptom = this.state.outsideCache.all
@@ -735,11 +737,10 @@ var dataHandler = Class.create({
 
                         return sym
                     })
-                    // evaluate symptom category and eliminate redundant ones
-                    // console.log("DISORDER: " + d.key);
 
+                // evaluate symptom category and eliminate redundant ones
                 var nonDuplicates = []
-                    // adding user-selected phenotype that did not match anything to the array
+                // adding user-selected phenotype that did not match anything in the array
                 var nonDuplicates = Object.keys(clientSelectedSymptom).map(function(k) {
                     var s = clientSelectedSymptom[k]
                     var sym = new Symptom(s.key, s.text, s.type, "unknown")
@@ -769,7 +770,7 @@ var dataHandler = Class.create({
                     }
 
                     if (pushAgain) {
-                        console.log("PUSHED: " + next.toString());
+                        // console.log("PUSHED: " + next.toString());
                         nonDuplicates.push(next)
                     }
                 }
@@ -781,7 +782,7 @@ var dataHandler = Class.create({
             return outputData
         },
 
-        // pre Process data to matrix
+        // convert data to matrix format ß
         toMatrix: function(data) {
 
             // ordering of raw data
@@ -793,6 +794,7 @@ var dataHandler = Class.create({
 
                 // construct row
                 var row = matrix.addRow([])
+                
                 Object.defineProperty(row, 'data', {
                     enumerable: false,
                     configurable: true,
